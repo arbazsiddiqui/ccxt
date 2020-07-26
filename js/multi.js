@@ -280,8 +280,60 @@ module.exports = class multi extends Exchange {
         };
     }
 
+    async fetchBalance (params = {}) {
+        await this.loadMarkets ();
+        const response = await this.privateGetAssetBalance (params);
+        const exchange = response['exchange'];
+        const keys = Object.keys (exchange);
+        const result = { 'info': exchange };
+        for (let i = 0; i < keys.length; i++) {
+            const code = keys[i];
+            result[code] = {
+                'free': parseFloat (exchange[code]['available']),
+                'used': parseFloat (exchange[code]['freeze']),
+            };
+        }
+        return this.parseBalance (result);
+    }
+
+    sign (path, api = 'public', method = 'GET', params = undefined, headers = undefined, body = undefined) {
+        let url = this.urls['api'] + '/' + this.version + '/' + path;
+        if (Object.keys (params).length) {
+            url += '?' + this.urlencode (params);
+        }
+        const timestamp = Math.floor (this.milliseconds () / 1000);
+        let payloadToSign = {};
+        if (method === 'GET' && params) {
+            payloadToSign = params;
+        }
+        if (method === 'POST' && body) {
+            payloadToSign = body;
+        }
+        const message = this._makeQueryString (this.extend ({}, payloadToSign, { timestamp, method, path })).substr (1);
+        const signature = this.hmac (this.encode (message), this.encode (this.secret), 'sha256', 'hex');
+        headers = {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-MULTI-API-KEY': this.apiKey,
+            'X-MULTI-API-SIGNATURE': signature,
+            'X-MULTI-API-TIMESTAMP': timestamp,
+            'X-MULTI-API-SIGNED-PATH': path,
+        };
+        return { 'url': url, 'method': method, 'body': body, 'headers': headers };
+    }
+
     _makeQueryString (q) {
-        return q ? `?${Object.keys (q).sort ().map ((k) => `${encodeURIComponent (k)}=${encodeURIComponent (q[k])}`).join ('&')}` : '';
+        const arr = [];
+        if (q) {
+            const sortedParams = this.keysort (q);
+            const keys = Object.keys (sortedParams);
+            for (let i = 0; i < keys.length; i++) {
+                const key = keys[i];
+                arr.push (this.encodeURIComponent (key) + '=' + this.encodeURIComponent (q[key]));
+            }
+            return '?' + arr.join ('&');
+        } else {
+            return '';
+        }
     }
 
     async request (path, api = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {
