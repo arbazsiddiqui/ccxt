@@ -20,7 +20,10 @@ module.exports = class multi extends Exchange {
                 'fetchTradingFees': true,
                 'fetchTrades': true,
                 'fetchTradingLimits': false,
+                'fetchFundingLimits': false,
                 'fetchTicker': true,
+                'fetchBalance': true,
+                'fetchAccounts': false,
             },
             'timeframes': {
                 '1h': '1h',
@@ -50,6 +53,7 @@ module.exports = class multi extends Exchange {
                 'private': {
                     'get': [
                         '/asset/balance',
+                        '/asset/deposit',
                     ],
                 },
             },
@@ -65,8 +69,8 @@ module.exports = class multi extends Exchange {
         const result = [];
         for (let i = 0; i < markets.length; i++) {
             const market = markets[i];
-            const base = this.safeCurrencyCode (market.base);
-            const quote = this.safeCurrencyCode (market.pair);
+            const base = this.safeCurrencyCode (market['base']);
+            const quote = this.safeCurrencyCode (market['pair']);
             const symbol = quote + '/' + base;
             const precision = {
                 'amount': this.safeInteger (market, 'pairPrec'),
@@ -232,7 +236,7 @@ module.exports = class multi extends Exchange {
         const amount = this.safeFloat (trade, 'amount');
         return {
             'info': trade,
-            'id': trade['id'],
+            'id': this.safeString (trade, 'id'),
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
             'symbol': symbol,
@@ -240,6 +244,10 @@ module.exports = class multi extends Exchange {
             'price': price,
             'amount': amount,
             'cost': parseFloat (price * amount),
+            'order': undefined,
+            'takerOrMaker': undefined,
+            'type': undefined,
+            'fee': undefined,
         };
     }
 
@@ -248,8 +256,8 @@ module.exports = class multi extends Exchange {
         const market = this.market (symbol);
         const marketId = market['id'];
         const response = await this.publicGetMarketStatusAll (params);
-        const { result } = this.getMarketTicket (response, marketId);
-        return this.parseTicker (result, symbol);
+        const marketTicket = this.getMarketTicket (response, marketId);
+        return this.parseTicker (marketTicket['result'], symbol);
     }
 
     getMarketTicket (response, marketId) {
@@ -274,9 +282,17 @@ module.exports = class multi extends Exchange {
             'ask': ticker['ask'],
             'open': ticker['open'],
             'close': ticker['close'],
-            'last': ticker['last'],
+            'last': ticker['close'],
             'baseVolume': ticker['baseVolume'],
             'quoteVolume': ticker['pairVolume'],
+            'askVolume': undefined,
+            'average': undefined,
+            'change': undefined,
+            'datetime': undefined,
+            'percentage': undefined,
+            'previousClose': undefined,
+            'timestamp': undefined,
+            'vwap': undefined,
         };
     }
 
@@ -301,23 +317,26 @@ module.exports = class multi extends Exchange {
         if (Object.keys (params).length) {
             url += '?' + this.urlencode (params);
         }
-        const timestamp = Math.floor (this.milliseconds () / 1000);
-        let payloadToSign = {};
-        if (method === 'GET' && params) {
-            payloadToSign = params;
+        if (api === 'private') {
+            this.checkRequiredCredentials ();
+            const timestamp = Math.floor (this.milliseconds () / 1000);
+            let payloadToSign = {};
+            if (method === 'GET' && params) {
+                payloadToSign = params;
+            }
+            if (method === 'POST' && body) {
+                payloadToSign = body;
+            }
+            const message = this._makeQueryString (this.extend ({}, payloadToSign, { timestamp, method, path })).substr (1);
+            const signature = this.hmac (this.encode (message), this.encode (this.secret), 'sha256', 'hex');
+            headers = {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-MULTI-API-KEY': this.apiKey,
+                'X-MULTI-API-SIGNATURE': signature,
+                'X-MULTI-API-TIMESTAMP': timestamp,
+                'X-MULTI-API-SIGNED-PATH': path,
+            };
         }
-        if (method === 'POST' && body) {
-            payloadToSign = body;
-        }
-        const message = this._makeQueryString (this.extend ({}, payloadToSign, { timestamp, method, path })).substr (1);
-        const signature = this.hmac (this.encode (message), this.encode (this.secret), 'sha256', 'hex');
-        headers = {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'X-MULTI-API-KEY': this.apiKey,
-            'X-MULTI-API-SIGNATURE': signature,
-            'X-MULTI-API-TIMESTAMP': timestamp,
-            'X-MULTI-API-SIGNED-PATH': path,
-        };
         return { 'url': url, 'method': method, 'body': body, 'headers': headers };
     }
 
