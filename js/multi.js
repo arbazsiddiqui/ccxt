@@ -351,8 +351,10 @@ module.exports = class multi extends Exchange {
 
     parseOrder (order, market) {
         const timestamp = this.safeTimestamp (order, 'cTime');
-        const type = (this.safeString (order, 'type') === '1') ? 'limit' : 'market';
-        const side = (this.safeString (order, 'side') === '1') ? 'sell' : 'buy';
+        const orderType = this.safeString (order, 'type');
+        const orderSide = this.safeString (order, 'side');
+        const type = (orderType === '1') ? 'limit' : 'market';
+        const side = (orderSide === '1') ? 'sell' : 'buy';
         const amount = this.safeFloat (order, 'amount');
         const filled = amount - this.safeFloat (order, 'left');
         const fee = {};
