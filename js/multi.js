@@ -24,6 +24,9 @@ module.exports = class multi extends Exchange {
                 'fetchTicker': true,
                 'fetchBalance': true,
                 'fetchAccounts': false,
+                'createOrder': true,
+                'cancelOrder': true,
+                'fetchDepositAddress': true,
             },
             'timeframes': {
                 '1h': '1h',
@@ -34,7 +37,7 @@ module.exports = class multi extends Exchange {
             },
             'urls': {
                 'logo': 'https://multi.io/en/static/img/icons/logo_white.svg',
-                'api': 'https://api.multi.io/api',
+                'api': 'https://staging-api.multi.io/api',
                 'www': 'https://multi.io/',
                 'doc': 'https://docs.multi.io/',
             },
@@ -53,7 +56,11 @@ module.exports = class multi extends Exchange {
                 'private': {
                     'get': [
                         '/asset/balance',
-                        '/asset/deposit',
+                    ],
+                    'post': [
+                        'asset/deposit',
+                        'order',
+                        'order/cancel',
                     ],
                 },
             },
@@ -312,25 +319,94 @@ module.exports = class multi extends Exchange {
         return this.parseBalance (result);
     }
 
+    async fetchDepositAddress (code, params = {}) {
+        await this.loadMarkets ();
+        const currency = this.currency (code);
+        const request = {
+            'symbol': currency['code'],
+        };
+        const response = await this.privatePostAssetDeposit (this.extend (request, params));
+        const currencyObject = this.safeValue (response, code);
+        return {
+            'currency': code,
+            'address': currencyObject['address'],
+            'tag': this.safeValue (currencyObject, 'memo'),
+            'info': currencyObject,
+        };
+    }
+
+    async createOrder (symbol, type, side, amount, price = undefined, params = {}) {
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        const request = {
+            'market': market['id'],
+            'side': (side === 'sell') ? 1 : 2,
+            'amount': amount,
+            'price': price,
+            'type': type,
+        };
+        const response = await this.privatePostOrder (this.extend (request, params));
+        return this.parseOrder (response, market);
+    }
+
+    parseOrder (order, market) {
+        const timestamp = this.safeTimestamp (order, 'cTime');
+        const type = (this.safeString (order, 'type') === '1') ? 'limit' : 'market';
+        const side = (this.safeString (order, 'side') === '1') ? 'sell' : 'buy';
+        const amount = this.safeFloat (order, 'amount');
+        const filled = amount - this.safeFloat (order, 'left');
+        const fee = {};
+        if (side === 'buy') {
+            fee['cost'] = order['takerFee'];
+        } else {
+            fee['cost'] = order['makerFee'];
+        }
+        fee['currency'] = market['base'];
+        return {
+            'id': this.safeString (order, 'id'),
+            'clientOrderId': undefined,
+            'datetime': this.iso8601 (timestamp),
+            'timestamp': timestamp,
+            'lastTradeTimestamp': undefined,
+            'status': undefined,
+            'symbol': market['symbol'],
+            'type': type,
+            'side': side,
+            'price': this.safeFloat (order, 'price'),
+            'average': undefined,
+            'amount': amount,
+            'filled': filled,
+            'remaining': this.safeFloat (order, 'left'),
+            'cost': parseFloat (filled * amount),
+            'trades': undefined,
+            'fee': fee,
+            'info': order,
+        };
+    }
+
     sign (path, api = 'public', method = 'GET', params = undefined, headers = undefined, body = undefined) {
         let url = this.urls['api'] + '/' + this.version + '/' + path;
-        if (Object.keys (params).length) {
-            url += '?' + this.urlencode (params);
+        const query = this.omit (params, this.extractParams (path));
+        if (method === 'GET') {
+            if (Object.keys (params).length) {
+                url += '?' + this.urlencode (params);
+            }
         }
         if (api === 'private') {
             this.checkRequiredCredentials ();
             const timestamp = Math.floor (this.milliseconds () / 1000);
             let payloadToSign = {};
             if (method === 'GET' && params) {
-                payloadToSign = params;
+                payloadToSign = {};
             }
-            if (method === 'POST' && body) {
-                payloadToSign = body;
+            if (method === 'POST') {
+                body = this.json (query);
+                payloadToSign = query;
             }
             const message = this._makeQueryString (this.extend ({}, payloadToSign, { timestamp, method, path })).substr (1);
             const signature = this.hmac (this.encode (message), this.encode (this.secret), 'sha256', 'hex');
             headers = {
-                'Content-Type': 'application/x-www-form-urlencoded',
+                'Content-Type': 'application/json',
                 'X-MULTI-API-KEY': this.apiKey,
                 'X-MULTI-API-SIGNATURE': signature,
                 'X-MULTI-API-TIMESTAMP': timestamp,
