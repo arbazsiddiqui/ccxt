@@ -55,7 +55,7 @@ module.exports = class multi extends Exchange {
                 },
                 'private': {
                     'get': [
-                        '/asset/balance',
+                        'asset/balance',
                     ],
                     'post': [
                         'asset/deposit',
@@ -76,9 +76,9 @@ module.exports = class multi extends Exchange {
         const result = [];
         for (let i = 0; i < markets.length; i++) {
             const market = markets[i];
-            const base = this.safeCurrencyCode (market['base']);
-            const quote = this.safeCurrencyCode (market['pair']);
-            const symbol = quote + '/' + base;
+            const base = this.safeCurrencyCode (market['pair']);
+            const quote = this.safeCurrencyCode (market['base']);
+            const symbol = base + '/' + quote;
             const precision = {
                 'amount': this.safeInteger (market, 'pairPrec'),
                 'price': this.safeInteger (market, 'basePrec'),
@@ -128,7 +128,7 @@ module.exports = class multi extends Exchange {
             const name = this.safeString (currency, 'displayName');
             const active = this.safeValue (currency, 'status');
             const fee = this.safeFloat (currency, 'withdrawFee');
-            const precision = this.safeFloat (currency, 'precShow');
+            const precision = this.safeFloat (currency, 'precWithdraw');
             result[code] = {
                 'id': id,
                 'numericId': numericId,
@@ -161,7 +161,7 @@ module.exports = class multi extends Exchange {
         return result;
     }
 
-    async fetchOrderBook (symbol, limit = undefined, interval = undefined, params = {}) {
+    async fetchOrderBook (symbol, limit = undefined, params = {}) {
         await this.loadMarkets ();
         const market = this.market (symbol);
         const request = {
@@ -170,11 +170,9 @@ module.exports = class multi extends Exchange {
         if (limit !== undefined) {
             request['limit'] = limit; // default = 20
         }
-        if (interval !== undefined) {
-            request['interval'] = interval; // default .01
-        }
         const response = await this.publicGetOrderDepth (this.extend (request, params));
-        return this.parseOrderBook (response, response['timestamp'] * 1000);
+        const timestamp = this.safeInteger (response, 'timestamp');
+        return this.parseOrderBook (response, timestamp * 1000);
     }
 
     async fetchOHLCV (symbol, timeframe = '1h', since = 86400000, limit = undefined, params = {}) {
@@ -193,8 +191,6 @@ module.exports = class multi extends Exchange {
                 request['start'] = parseInt (start);
                 request['end'] = parseInt (now);
             } else {
-                const start = now - since / 1000;
-                request['start'] = parseInt (start);
                 request['end'] = parseInt (now);
             }
         } else {
@@ -285,13 +281,13 @@ module.exports = class multi extends Exchange {
             'high': ticker['high'],
             'low': ticker['low'],
             'bid': ticker['bid'],
-            'bidVolume': ticker['volume'],
+            'bidVolume': undefined,
             'ask': ticker['ask'],
             'open': ticker['open'],
             'close': ticker['close'],
             'last': ticker['close'],
-            'baseVolume': ticker['baseVolume'],
-            'quoteVolume': ticker['pairVolume'],
+            'baseVolume': ticker['pairVolume'],
+            'quoteVolume': ticker['baseVolume'],
             'askVolume': undefined,
             'average': undefined,
             'change': undefined,
