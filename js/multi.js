@@ -3,6 +3,7 @@
 //  ---------------------------------------------------------------------------
 
 const Exchange = require ('./base/Exchange');
+const { OrderNotFound } = require ('./base/errors');
 //  ---------------------------------------------------------------------------
 
 module.exports = class multi extends Exchange {
@@ -26,6 +27,9 @@ module.exports = class multi extends Exchange {
                 'fetchAccounts': false,
                 'createOrder': true,
                 'cancelOrder': true,
+                'fetchOpenOrders': true,
+                'fetchOrder': true,
+                'fetchOrders': true,
                 'fetchDepositAddress': true,
             },
             'timeframes': {
@@ -56,6 +60,12 @@ module.exports = class multi extends Exchange {
                 'private': {
                     'get': [
                         'asset/balance',
+                        'order/pending/detail',
+                        'order/completed/detail',
+                        'order/pending',
+                        'order/pending/stoplimit',
+                        'order/completed',
+                        'order/completed/detail',
                     ],
                     'post': [
                         'asset/deposit',
@@ -358,7 +368,7 @@ module.exports = class multi extends Exchange {
         const type = (orderType === '1') ? 'limit' : 'market';
         const side = (orderSide === '1') ? 'sell' : 'buy';
         const amount = this.safeFloat (order, 'amount');
-        const filled = amount - this.safeFloat (order, 'left');
+        const filled = amount - this.safeFloat (order, 'left', 0);
         const fee = {};
         if (side === 'buy') {
             fee['cost'] = order['takerFee'];
@@ -381,11 +391,117 @@ module.exports = class multi extends Exchange {
             'amount': amount,
             'filled': filled,
             'remaining': this.safeFloat (order, 'left'),
-            'cost': parseFloat (filled * amount),
+            'cost': parseFloat (filled * this.safeFloat (order, 'price')),
             'trades': undefined,
             'fee': fee,
             'info': order,
         };
+    }
+
+    async fetchOpenOrder (id, symbol = undefined, params = {}) {
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        const request = {
+            'market': market['id'],
+            'orderId': id,
+            'type': 'limit',
+        };
+        const fetchLimitOrderResponse = await this.privateGetOrderPendingDetail (this.extend (request, params));
+        if (fetchLimitOrderResponse) {
+            return this.parseOrder (fetchLimitOrderResponse, market);
+        }
+        request['type'] = 'stoplimit';
+        const fetchStopLimitOrderResponse = await this.privateGetOrderPendingDetail (this.extend (request, params));
+        if (fetchStopLimitOrderResponse) {
+            return this.parseOrder (fetchStopLimitOrderResponse, market);
+        }
+        return null;
+    }
+
+    async fetchCompleteOrder (id, symbol = undefined, params = {}) {
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        const request = {
+            'orderId': id,
+        };
+        const response = await this.privateGetOrderCompletedDetail (this.extend (request, params));
+        return this.parseOrder (response, market);
+    }
+
+    async fetchOrder (id, symbol = undefined, params = {}) {
+        const openOrder = await this.fetchOpenOrder (id, symbol, params);
+        if (openOrder) {
+            return openOrder;
+        }
+        const completeOrder = await this.fetchCompleteOrder (id, symbol);
+        if (completeOrder) {
+            return completeOrder;
+        }
+        throw new OrderNotFound (this.id + ' order ' + id + ' not found');
+    }
+
+    async fetchLimitPendingOrders (marketId, limit = undefined, params = {}) {
+        const request = {
+            'market': marketId,
+            'limit': limit,
+        };
+        const response = await this.privateGetOrderPending (this.extend (request, params));
+        return this.safeValue (response, 'records');
+    }
+
+    async fetchStopLimitPendingOrders (marketId, limit = undefined, params = {}) {
+        const request = {
+            'market': marketId,
+            'limit': limit,
+        };
+        const response = await this.privateGetOrderPendingStoplimit (this.extend (request, params));
+        return this.safeValue (response, 'records');
+    }
+
+    async fetchCompleteOrders (marketId, limit = undefined, params = {}) {
+        const request = {
+            'market': marketId,
+            'limit': limit,
+        };
+        const response = await this.privateGetOrderCompleted (this.extend (request, params));
+        return this.safeValue (response, 'records');
+    }
+
+    async fetchOpenOrders (symbol = undefined, since = undefined, limit = undefined, params = {}) {
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        const marketId = market['id'];
+        const pendingLimitOrdersPromise = this.fetchLimitPendingOrders (marketId, limit, params);
+        const pendingStopLimitOrdersPromise = this.fetchStopLimitPendingOrders (marketId, limit, params);
+        const limitOrders = await pendingLimitOrdersPromise;
+        const stopLimitOrders = await pendingStopLimitOrdersPromise;
+        return this.parseOrders (limitOrders.concat (stopLimitOrders), market, since, limit, params);
+    }
+
+    async fetchOrders (symbol = undefined, since = undefined, limit = undefined, params = {}) {
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        const marketId = market['id'];
+        const pendingLimitOrdersPromise = this.fetchLimitPendingOrders (marketId, limit, params);
+        const pendingStopLimitOrdersPromise = this.fetchStopLimitPendingOrders (marketId, limit, params);
+        const completeOrdersPromise = this.fetchCompleteOrders (marketId, limit, params);
+        const limitOrders = await pendingLimitOrdersPromise;
+        const stopLimitOrders = await pendingStopLimitOrdersPromise;
+        const completeOrders = await completeOrdersPromise;
+        const allOrders = limitOrders.concat (stopLimitOrders, completeOrders);
+        return this.parseOrders (allOrders, market, since, limit, params);
+    }
+
+    async cancelOrder (id, symbol = undefined, params = {}) {
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        const request = {
+            'market': market['id'],
+            'orderId': id,
+            'type': 'limit',
+        };
+        const response = await this.privatePostOrderCancel (this.extend (request, params));
+        return { 'success': true, 'info': response };
     }
 
     sign (path, api = 'public', method = 'GET', params = undefined, headers = undefined, body = undefined) {
