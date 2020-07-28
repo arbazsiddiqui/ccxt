@@ -345,6 +345,12 @@ module.exports = class multi extends Exchange {
             'price': price,
             'type': type,
         };
+        if (this.safeValue (params, 'type') === 'stopLimit') {
+            request['type'] = 'stoplimit';
+            request['stop'] = this.safeValue (params, 'stopPrice');
+            request['gtlt'] = this.safeValue (params, 'gtlt', 1);
+            params = this.omit (params, [ 'type', 'stopPrice', 'gtlt' ]);
+        }
         const response = await this.privatePostOrder (this.extend (request, params));
         return this.parseOrder (response, market);
     }
