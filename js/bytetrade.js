@@ -19,20 +19,27 @@ module.exports = class bytetrade extends Exchange {
             'certified': true,
             // new metainfo interface
             'has': {
+                'cancelOrder': true,
+                'CORS': false,
+                'createOrder': true,
+                'fetchBalance': true,
+                'fetchBidsAsks': true,
+                'fetchClosedOrders': true,
                 'fetchCurrencies': true,
                 'fetchDepositAddress': true,
-                'CORS': false,
-                'fetchBidsAsks': true,
-                'fetchTickers': true,
-                'fetchOHLCV': true,
-                'fetchMyTrades': true,
-                'fetchOrder': true,
-                'fetchOrders': true,
-                'fetchOpenOrders': true,
-                'fetchClosedOrders': true,
-                'withdraw': true,
                 'fetchDeposits': true,
+                'fetchMarkets': true,
+                'fetchMyTrades': true,
+                'fetchOHLCV': true,
+                'fetchOpenOrders': true,
+                'fetchOrder': true,
+                'fetchOrderBook': true,
+                'fetchOrders': true,
+                'fetchTicker': true,
+                'fetchTickers': true,
+                'fetchTrades': true,
                 'fetchWithdrawals': true,
+                'withdraw': true,
             },
             'timeframes': {
                 '1m': '1m',
@@ -486,7 +493,7 @@ module.exports = class bytetrade extends Exchange {
         const type = this.safeString (trade, 'type');
         const takerOrMaker = this.safeString (trade, 'takerOrMaker');
         const side = this.safeString (trade, 'side');
-        const datetime = this.safeString (trade, 'datetime');
+        const datetime = this.iso8601 (timestamp); // this.safeString (trade, 'datetime');
         const order = this.safeString (trade, 'order');
         const fee = this.safeValue (trade, 'fee');
         let symbol = undefined;

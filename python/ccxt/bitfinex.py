@@ -18,6 +18,8 @@ from ccxt.base.errors import NotSupported
 from ccxt.base.errors import RateLimitExceeded
 from ccxt.base.errors import ExchangeNotAvailable
 from ccxt.base.errors import InvalidNonce
+from ccxt.base.decimal_to_precision import TRUNCATE
+from ccxt.base.decimal_to_precision import DECIMAL_PLACES
 from ccxt.base.decimal_to_precision import SIGNIFICANT_DIGITS
 
 
@@ -34,22 +36,30 @@ class bitfinex(Exchange):
             'pro': True,
             # new metainfo interface
             'has': {
-                'CORS': False,
                 'cancelAllOrders': True,
+                'cancelOrder': True,
+                'CORS': False,
                 'createDepositAddress': True,
+                'createOrder': True,
                 'deposit': True,
+                'editOrder': True,
+                'fetchBalance': True,
                 'fetchClosedOrders': True,
                 'fetchDepositAddress': True,
-                'fetchTradingFee': True,
-                'fetchTradingFees': True,
+                'fetchDeposits': False,
                 'fetchFundingFees': True,
+                'fetchMarkets': True,
                 'fetchMyTrades': True,
                 'fetchOHLCV': True,
                 'fetchOpenOrders': True,
                 'fetchOrder': True,
+                'fetchOrderBook': True,
+                'fetchTicker': True,
                 'fetchTickers': True,
+                'fetchTrades': True,
+                'fetchTradingFee': True,
+                'fetchTradingFees': True,
                 'fetchTransactions': True,
-                'fetchDeposits': False,
                 'fetchWithdrawals': False,
                 'withdraw': True,
             },
@@ -510,7 +520,7 @@ class bitfinex(Exchange):
             symbol = base + '/' + quote
             precision = {
                 'price': self.safe_integer(market, 'price_precision'),
-                'amount': None,
+                'amount': 8,  # https://github.com/ccxt/ccxt/issues/7310
             }
             limits = {
                 'amount': {
@@ -541,7 +551,7 @@ class bitfinex(Exchange):
         return result
 
     def amount_to_precision(self, symbol, amount):
-        return self.number_to_string(amount)
+        return self.decimal_to_precision(amount, TRUNCATE, self.markets[symbol]['precision']['amount'], DECIMAL_PLACES)
 
     def calculate_fee(self, symbol, type, side, amount, price, takerOrMaker='taker', params={}):
         market = self.markets[symbol]
@@ -1107,6 +1117,7 @@ class bitfinex(Exchange):
                 'X-BFX-APIKEY': self.apiKey,
                 'X-BFX-PAYLOAD': self.decode(payload),
                 'X-BFX-SIGNATURE': signature,
+                'Content-Type': 'application/json',
             }
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
 

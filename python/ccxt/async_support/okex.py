@@ -1767,7 +1767,7 @@ class okex(Exchange):
         request = {
             'instrument_id': market['id'],
             # 'client_oid': 'abcdef1234567890',  # [a-z0-9]{1,32}
-            # 'order_type': '0',  # 0: Normal limit order(Unfilled and 0 represent normal limit order) 1: Post only 2: Fill Or Kill 3: Immediatel Or Cancel
+            # 'order_type': '0',  # 0 = Normal limit order, 1 = Post only, 2 = Fill Or Kill, 3 = Immediatel Or Cancel, 4 = Market for futures only
         }
         clientOrderId = self.safe_string_2(params, 'client_oid', 'clientOrderId')
         if clientOrderId is not None:
@@ -1779,9 +1779,12 @@ class okex(Exchange):
             request = self.extend(request, {
                 'type': type,  # 1:open long 2:open short 3:close long 4:close short for futures
                 'size': size,
-                'price': self.price_to_precision(symbol, price),
                 # 'match_price': '0',  # Order at best counter party price?(0:no 1:yes). The default is 0. If it is set as 1, the price parameter will be ignored. When posting orders at best bid price, order_type can only be 0(regular order).
             })
+            orderType = self.safe_string(params, 'order_type')
+            # order_type == '4' means a market order
+            if orderType != '4':
+                request['price'] = self.price_to_precision(symbol, price)
             if market['futures']:
                 request['leverage'] = '10'  # or '20'
             method = market['type'] + 'PostOrder'
@@ -2342,7 +2345,7 @@ class okex(Exchange):
         currency = None
         if code is not None:
             currency = self.currency(code)
-            request['code'] = currency['code']
+            request['currency'] = currency['id']
             method += 'Currency'
         response = await getattr(self, method)(self.extend(request, params))
         return self.parse_transactions(response, currency, since, limit, params)
@@ -2354,7 +2357,7 @@ class okex(Exchange):
         currency = None
         if code is not None:
             currency = self.currency(code)
-            request['code'] = currency['code']
+            request['currency'] = currency['id']
             method += 'Currency'
         response = await getattr(self, method)(self.extend(request, params))
         return self.parse_transactions(response, currency, since, limit, params)
@@ -2385,7 +2388,7 @@ class okex(Exchange):
         #
         statuses = {
             '-3': 'pending',
-            '-2': 'pending',
+            '-2': 'canceled',
             '-1': 'failed',
             '0': 'pending',
             '1': 'pending',
@@ -3084,12 +3087,12 @@ class okex(Exchange):
         return self.safe_string(auth, key, 'private')
 
     def handle_errors(self, code, reason, url, method, headers, body, response, requestHeaders, requestBody):
+        if not response:
+            return  # fallback to default error handler
         feedback = self.id + ' ' + body
         if code == 503:
             # {"message":"name resolution failed"}
             raise ExchangeNotAvailable(feedback)
-        if not response:
-            return  # fallback to default error handler
         #
         #     {"error_message":"Order does not exist","result":"true","error_code":"35029","order_id":"-1"}
         #
@@ -3097,10 +3100,10 @@ class okex(Exchange):
         errorCode = self.safe_string_2(response, 'code', 'error_code')
         nonEmptyMessage = ((message is not None) and (message != ''))
         nonZeroErrorCode = (errorCode is not None) and (errorCode != '0')
-        if message is not None:
+        if nonEmptyMessage:
             self.throw_exactly_matched_exception(self.exceptions['exact'], message, feedback)
             self.throw_broadly_matched_exception(self.exceptions['broad'], message, feedback)
-        if errorCode is not None:
+        if nonZeroErrorCode:
             self.throw_exactly_matched_exception(self.exceptions['exact'], errorCode, feedback)
         if nonZeroErrorCode or nonEmptyMessage:
             raise ExchangeError(feedback)  # unknown message

@@ -36,7 +36,7 @@ use Elliptic\EC;
 use Elliptic\EdDSA;
 use BN\BN;
 
-$version = '1.31.73';
+$version = '1.32.23';
 
 // rounding mode
 const TRUNCATE = 0;
@@ -55,7 +55,7 @@ const PAD_WITH_ZERO = 1;
 
 class Exchange {
 
-    const VERSION = '1.31.73';
+    const VERSION = '1.32.23';
 
     private static $base58_alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
     private static $base58_encoder = null;
@@ -63,7 +63,6 @@ class Exchange {
 
     public static $exchanges = array(
         'acx',
-        'anxpro',
         'aofex',
         'bcex',
         'bequant',
@@ -1258,16 +1257,16 @@ class Exchange {
         return json_decode($json_string, $as_associative_array);
     }
 
-    public function print() {
-        $args = func_get_args();
-        if (is_array($args)) {
-            $array = array();
-            foreach ($args as $arg) {
-                $array[] = is_string($arg) ? $arg : json_encode($arg, JSON_PRETTY_PRINT);
-            }
-            echo implode(' ', $array), "\n";
-        }
-    }
+    // public function print() {
+    //     $args = func_get_args();
+    //     if (is_array($args)) {
+    //         $array = array();
+    //         foreach ($args as $arg) {
+    //             $array[] = is_string($arg) ? $arg : json_encode($arg, JSON_PRETTY_PRINT);
+    //         }
+    //         echo implode(' ', $array), "\n";
+    //     }
+    // }
 
     public function fetch($url, $method = 'GET', $headers = null, $body = null) {
         if ($this->enableRateLimit) {

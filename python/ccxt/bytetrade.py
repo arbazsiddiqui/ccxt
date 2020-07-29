@@ -29,20 +29,27 @@ class bytetrade(Exchange):
             'certified': True,
             # new metainfo interface
             'has': {
+                'cancelOrder': True,
+                'CORS': False,
+                'createOrder': True,
+                'fetchBalance': True,
+                'fetchBidsAsks': True,
+                'fetchClosedOrders': True,
                 'fetchCurrencies': True,
                 'fetchDepositAddress': True,
-                'CORS': False,
-                'fetchBidsAsks': True,
-                'fetchTickers': True,
-                'fetchOHLCV': True,
-                'fetchMyTrades': True,
-                'fetchOrder': True,
-                'fetchOrders': True,
-                'fetchOpenOrders': True,
-                'fetchClosedOrders': True,
-                'withdraw': True,
                 'fetchDeposits': True,
+                'fetchMarkets': True,
+                'fetchMyTrades': True,
+                'fetchOHLCV': True,
+                'fetchOpenOrders': True,
+                'fetchOrder': True,
+                'fetchOrderBook': True,
+                'fetchOrders': True,
+                'fetchTicker': True,
+                'fetchTickers': True,
+                'fetchTrades': True,
                 'fetchWithdrawals': True,
+                'withdraw': True,
             },
             'timeframes': {
                 '1m': '1m',
@@ -466,7 +473,7 @@ class bytetrade(Exchange):
         type = self.safe_string(trade, 'type')
         takerOrMaker = self.safe_string(trade, 'takerOrMaker')
         side = self.safe_string(trade, 'side')
-        datetime = self.safe_string(trade, 'datetime')
+        datetime = self.iso8601(timestamp)  # self.safe_string(trade, 'datetime')
         order = self.safe_string(trade, 'order')
         fee = self.safe_value(trade, 'fee')
         symbol = None

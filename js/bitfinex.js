@@ -4,7 +4,7 @@
 
 const Exchange = require ('./base/Exchange');
 const { NotSupported, RateLimitExceeded, AuthenticationError, PermissionDenied, ArgumentsRequired, ExchangeError, ExchangeNotAvailable, InsufficientFunds, InvalidOrder, OrderNotFound, InvalidNonce } = require ('./base/errors');
-const { SIGNIFICANT_DIGITS } = require ('./base/functions/number');
+const { SIGNIFICANT_DIGITS, DECIMAL_PLACES, TRUNCATE } = require ('./base/functions/number');
 
 //  ---------------------------------------------------------------------------
 
@@ -20,22 +20,30 @@ module.exports = class bitfinex extends Exchange {
             'pro': true,
             // new metainfo interface
             'has': {
-                'CORS': false,
                 'cancelAllOrders': true,
+                'cancelOrder': true,
+                'CORS': false,
                 'createDepositAddress': true,
+                'createOrder': true,
                 'deposit': true,
+                'editOrder': true,
+                'fetchBalance': true,
                 'fetchClosedOrders': true,
                 'fetchDepositAddress': true,
-                'fetchTradingFee': true,
-                'fetchTradingFees': true,
+                'fetchDeposits': false,
                 'fetchFundingFees': true,
+                'fetchMarkets': true,
                 'fetchMyTrades': true,
                 'fetchOHLCV': true,
                 'fetchOpenOrders': true,
                 'fetchOrder': true,
+                'fetchOrderBook': true,
+                'fetchTicker': true,
                 'fetchTickers': true,
+                'fetchTrades': true,
+                'fetchTradingFee': true,
+                'fetchTradingFees': true,
                 'fetchTransactions': true,
-                'fetchDeposits': false,
                 'fetchWithdrawals': false,
                 'withdraw': true,
             },
@@ -502,7 +510,7 @@ module.exports = class bitfinex extends Exchange {
             const symbol = base + '/' + quote;
             const precision = {
                 'price': this.safeInteger (market, 'price_precision'),
-                'amount': undefined,
+                'amount': 8, // https://github.com/ccxt/ccxt/issues/7310
             };
             const limits = {
                 'amount': {
@@ -535,7 +543,7 @@ module.exports = class bitfinex extends Exchange {
     }
 
     amountToPrecision (symbol, amount) {
-        return this.numberToString (amount);
+        return this.decimalToPrecision (amount, TRUNCATE, this.markets[symbol]['precision']['amount'], DECIMAL_PLACES);
     }
 
     calculateFee (symbol, type, side, amount, price, takerOrMaker = 'taker', params = {}) {
@@ -1183,6 +1191,7 @@ module.exports = class bitfinex extends Exchange {
                 'X-BFX-APIKEY': this.apiKey,
                 'X-BFX-PAYLOAD': this.decode (payload),
                 'X-BFX-SIGNATURE': signature,
+                'Content-Type': 'application/json',
             };
         }
         return { 'url': url, 'method': method, 'body': body, 'headers': headers };

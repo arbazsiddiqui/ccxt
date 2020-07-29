@@ -1804,7 +1804,7 @@ class okex extends Exchange {
         $request = array(
             'instrument_id' => $market['id'],
             // 'client_oid' => 'abcdef1234567890', // [a-z0-9]array(1,32)
-            // 'order_type' => '0', // 0 => Normal limit $order (Unfilled and 0 represent normal limit $order) 1 => Post only 2 => Fill Or Kill 3 => Immediatel Or Cancel
+            // 'order_type' => '0', // 0 = Normal limit $order, 1 = Post only, 2 = Fill Or Kill, 3 = Immediatel Or Cancel, 4 = Market for futures only
         );
         $clientOrderId = $this->safe_string_2($params, 'client_oid', 'clientOrderId');
         if ($clientOrderId !== null) {
@@ -1817,9 +1817,13 @@ class okex extends Exchange {
             $request = array_merge($request, array(
                 'type' => $type, // 1:open long 2:open short 3:close long 4:close short for futures
                 'size' => $size,
-                'price' => $this->price_to_precision($symbol, $price),
                 // 'match_price' => '0', // Order at best counter party $price? (0:no 1:yes). The default is 0. If it is set as 1, the $price parameter will be ignored. When posting orders at best bid $price, order_type can only be 0 (regular $order).
             ));
+            $orderType = $this->safe_string($params, 'order_type');
+            // order_type === '4' means a $market $order
+            if ($orderType !== '4') {
+                $request['price'] = $this->price_to_precision($symbol, $price);
+            }
             if ($market['futures']) {
                 $request['leverage'] = '10'; // or '20'
             }
@@ -2434,7 +2438,7 @@ class okex extends Exchange {
         $currency = null;
         if ($code !== null) {
             $currency = $this->currency($code);
-            $request['code'] = $currency['code'];
+            $request['currency'] = $currency['id'];
             $method .= 'Currency';
         }
         $response = $this->$method (array_merge($request, $params));
@@ -2448,7 +2452,7 @@ class okex extends Exchange {
         $currency = null;
         if ($code !== null) {
             $currency = $this->currency($code);
-            $request['code'] = $currency['code'];
+            $request['currency'] = $currency['id'];
             $method .= 'Currency';
         }
         $response = $this->$method (array_merge($request, $params));
@@ -2481,7 +2485,7 @@ class okex extends Exchange {
         //
         $statuses = array(
             '-3' => 'pending',
-            '-2' => 'pending',
+            '-2' => 'canceled',
             '-1' => 'failed',
             '0' => 'pending',
             '1' => 'pending',
@@ -3217,13 +3221,13 @@ class okex extends Exchange {
     }
 
     public function handle_errors($code, $reason, $url, $method, $headers, $body, $response, $requestHeaders, $requestBody) {
+        if (!$response) {
+            return; // fallback to default error handler
+        }
         $feedback = $this->id . ' ' . $body;
         if ($code === 503) {
             // array("$message":"name resolution failed")
             throw new ExchangeNotAvailable($feedback);
-        }
-        if (!$response) {
-            return; // fallback to default error handler
         }
         //
         //     array("error_message":"Order does not exist","result":"true","error_code":"35029","order_id":"-1")
@@ -3232,11 +3236,11 @@ class okex extends Exchange {
         $errorCode = $this->safe_string_2($response, 'code', 'error_code');
         $nonEmptyMessage = (($message !== null) && ($message !== ''));
         $nonZeroErrorCode = ($errorCode !== null) && ($errorCode !== '0');
-        if ($message !== null) {
+        if ($nonEmptyMessage) {
             $this->throw_exactly_matched_exception($this->exceptions['exact'], $message, $feedback);
             $this->throw_broadly_matched_exception($this->exceptions['broad'], $message, $feedback);
         }
-        if ($errorCode !== null) {
+        if ($nonZeroErrorCode) {
             $this->throw_exactly_matched_exception($this->exceptions['exact'], $errorCode, $feedback);
         }
         if ($nonZeroErrorCode || $nonEmptyMessage) {
