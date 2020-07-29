@@ -27,10 +27,13 @@ module.exports = class multi extends Exchange {
                 'fetchAccounts': false,
                 'createOrder': true,
                 'cancelOrder': true,
-                'fetchOpenOrders': true,
+                'editOrder': false,
                 'fetchOrder': true,
+                'fetchOpenOrders': true,
                 'fetchOrders': true,
+                'fetchMyTrades': true,
                 'fetchDepositAddress': true,
+                'withdraw': true,
             },
             'timeframes': {
                 '1h': '1h',
@@ -66,11 +69,13 @@ module.exports = class multi extends Exchange {
                         'order/pending/stoplimit',
                         'order/completed',
                         'order/completed/detail',
+                        'market/user/trade',
                     ],
                     'post': [
                         'asset/deposit',
                         'order',
                         'order/cancel',
+                        'asset/withdraw',
                     ],
                 },
             },
@@ -247,20 +252,34 @@ module.exports = class multi extends Exchange {
         const timestamp = this.safeTimestamp (trade, 'time');
         const price = this.safeFloat (trade, 'price');
         const amount = this.safeFloat (trade, 'amount');
+        const role = this.safeString (trade, 'role');
+        const takerOrMaker = (role === '1') ? 'maker' : 'taker';
+        let side = this.safeString (trade, 'side');
+        const type = this.safeValue (trade, 'type');
+        const fee = {};
+        fee['cost'] = this.safeFloat (trade, 'fee');
+        if (side === '1' || type === 'sell') { // sell
+            fee['currency'] = market['quote'];
+            side = 'sell';
+        }
+        if (side === '2' || type === 'buy') { // buy
+            fee['currency'] = market['base'];
+            side = 'buy';
+        }
         return {
             'info': trade,
             'id': this.safeString (trade, 'id'),
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
             'symbol': symbol,
-            'side': trade['type'],
+            'side': side,
             'price': price,
             'amount': amount,
             'cost': parseFloat (price * amount),
-            'order': undefined,
-            'takerOrMaker': undefined,
+            'order': this.safeString (trade, 'id'),
+            'takerOrMaker': takerOrMaker,
             'type': undefined,
-            'fee': undefined,
+            'fee': fee,
         };
     }
 
@@ -339,26 +358,6 @@ module.exports = class multi extends Exchange {
             'tag': this.safeValue (currencyObject, 'memo'),
             'info': currencyObject,
         };
-    }
-
-    async createOrder (symbol, type, side, amount, price = undefined, params = {}) {
-        await this.loadMarkets ();
-        const market = this.market (symbol);
-        const request = {
-            'market': market['id'],
-            'side': (side === 'sell') ? 1 : 2,
-            'amount': amount,
-            'price': price,
-            'type': type,
-        };
-        if (this.safeValue (params, 'type') === 'stopLimit') {
-            request['type'] = 'stoplimit';
-            request['stop'] = this.safeValue (params, 'stopPrice');
-            request['gtlt'] = this.safeValue (params, 'gtlt', 1);
-            params = this.omit (params, [ 'type', 'stopPrice', 'gtlt' ]);
-        }
-        const response = await this.privatePostOrder (this.extend (request, params));
-        return this.parseOrder (response, market);
     }
 
     parseOrder (order, market) {
@@ -492,6 +491,42 @@ module.exports = class multi extends Exchange {
         return this.parseOrders (allOrders, market, since, limit, params);
     }
 
+    async fetchMyTrades (symbol = undefined, since = undefined, limit = undefined, params = {}) {
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        const request = {
+            'market': market['id'],
+        };
+        if (since) {
+            request['since'] = parseInt (since / 1000);
+        }
+        if (limit) {
+            request['limit'] = limit;
+        }
+        const response = await this.privateGetMarketUserTrade (this.extend (request, params));
+        return this.parseTrades (response['records'], market, since, limit);
+    }
+
+    async createOrder (symbol, type, side, amount, price = undefined, params = {}) {
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        const request = {
+            'market': market['id'],
+            'side': (side === 'sell') ? 1 : 2,
+            'amount': amount,
+            'price': price,
+            'type': type,
+        };
+        if (this.safeValue (params, 'type') === 'stopLimit') {
+            request['type'] = 'stoplimit';
+            request['stop'] = this.safeValue (params, 'stopPrice');
+            request['gtlt'] = this.safeValue (params, 'gtlt', 1);
+            params = this.omit (params, [ 'type', 'stopPrice', 'gtlt' ]);
+        }
+        const response = await this.privatePostOrder (this.extend (request, params));
+        return this.parseOrder (response, market);
+    }
+
     async cancelOrder (id, symbol = undefined, params = {}) {
         await this.loadMarkets ();
         const market = this.market (symbol);
@@ -502,6 +537,24 @@ module.exports = class multi extends Exchange {
         };
         const response = await this.privatePostOrderCancel (this.extend (request, params));
         return { 'success': true, 'info': response };
+    }
+
+    async withdraw (code, amount, address, tag = undefined, params = {}) {
+        this.checkAddress (address);
+        await this.loadMarkets ();
+        const currency = this.currency (code);
+        const request = {
+            'amount': amount,
+            'symbol': currency['code'],
+            'address': address,
+        };
+        if (tag !== undefined) {
+            request['memo'] = tag;
+        }
+        const response = await this.privatePostAssetWithdraw (this.extend (request, params));
+        return {
+            'info': this.extend ({ 'status': 'ok' }, response),
+        };
     }
 
     sign (path, api = 'public', method = 'GET', params = undefined, headers = undefined, body = undefined) {
