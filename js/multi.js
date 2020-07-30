@@ -16,13 +16,13 @@ module.exports = class multi extends Exchange {
             'has': {
                 'fetchMarkets': true,
                 'fetchCurrencies': true,
-                'fetchOrderBook': true,
-                'fetchOHLCV': true,
-                'fetchTradingFees': true,
-                'fetchTrades': true,
                 'fetchTradingLimits': false,
+                'fetchTradingFees': true,
                 'fetchFundingLimits': false,
                 'fetchTicker': true,
+                'fetchOrderBook': true,
+                'fetchTrades': true,
+                'fetchOHLCV': true,
                 'fetchBalance': true,
                 'fetchAccounts': false,
                 'createOrder': true,
@@ -37,6 +37,7 @@ module.exports = class multi extends Exchange {
                 'fetchWithdrawals': true,
                 'fetchTransactions': true,
                 'withdraw': true,
+                'transfer': false,
             },
             'timeframes': {
                 '1h': '1h',
@@ -376,9 +377,9 @@ module.exports = class multi extends Exchange {
         const filled = amount - this.safeFloat (order, 'left', 0);
         const fee = {};
         if (side === 'buy') {
-            fee['cost'] = order['takerFee'];
+            fee['cost'] = this.safeValue (order, 'takerFee');
         } else {
-            fee['cost'] = order['makerFee'];
+            fee['cost'] = this.safeValue (order, 'makerFee');
         }
         fee['currency'] = market['base'];
         return {
@@ -539,7 +540,7 @@ module.exports = class multi extends Exchange {
         const request = {
             'market': market['id'],
             'orderId': id,
-            'type': 'limit',
+            'type': 'limit', // TODO support cancelling stop limit order
         };
         const response = await this.privatePostOrderCancel (this.extend (request, params));
         return { 'success': true, 'info': response };
