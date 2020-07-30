@@ -33,6 +33,9 @@ module.exports = class multi extends Exchange {
                 'fetchOrders': true,
                 'fetchMyTrades': true,
                 'fetchDepositAddress': true,
+                'fetchDeposits': true,
+                'fetchWithdrawals': true,
+                'fetchTransactions': true,
                 'withdraw': true,
             },
             'timeframes': {
@@ -70,6 +73,9 @@ module.exports = class multi extends Exchange {
                         'order/completed',
                         'order/completed/detail',
                         'market/user/trade',
+                        'asset/transactions/withdraw',
+                        'asset/transactions/deposit',
+                        'asset/transactions/all',
                     ],
                     'post': [
                         'asset/deposit',
@@ -109,7 +115,7 @@ module.exports = class multi extends Exchange {
                 'precision': precision,
                 'limits': {
                     'amount': {
-                        'min': this.safeFloat (market, 'minAmount'),
+                        'min': undefined,
                         'max': undefined,
                     },
                     'price': {
@@ -537,6 +543,81 @@ module.exports = class multi extends Exchange {
         };
         const response = await this.privatePostOrderCancel (this.extend (request, params));
         return { 'success': true, 'info': response };
+    }
+
+    async fetchWithdrawals (code = undefined, since = undefined, limit = undefined, params = {}) {
+        await this.loadMarkets ();
+        const currency = this.currency (code);
+        const request = {
+            'symbol': currency['code'],
+        };
+        if (limit !== undefined) {
+            request['limit'] = limit;
+        }
+        const response = await this.privateGetAssetTransactionsWithdraw (this.extend (request, params));
+        return this.parseTransactions (response['result'], currency, since, limit, params);
+    }
+
+    async fetchDeposits (code = undefined, since = undefined, limit = undefined, params = {}) {
+        await this.loadMarkets ();
+        const currency = this.currency (code);
+        const request = {
+            'symbol': currency['code'],
+        };
+        if (limit !== undefined) {
+            request['limit'] = limit;
+        }
+        const response = await this.privateGetAssetTransactionsDeposit (this.extend (request, params));
+        return this.parseTransactions (response['result'], currency, since, limit, params);
+    }
+
+    async fetchTransactions (code = undefined, since = undefined, limit = undefined, params = {}) {
+        await this.loadMarkets ();
+        const currency = this.currency (code);
+        const request = {
+            'symbol': currency['code'],
+        };
+        if (limit !== undefined) {
+            request['limit'] = limit;
+        }
+        const response = await this.privateGetAssetTransactionsAll (this.extend (request, params));
+        return this.parseTransactions (response['result'], currency, since, limit, params);
+    }
+
+    parseTransaction (transaction, currency) {
+        let addressFrom = undefined;
+        let addressTo = undefined;
+        let tagFrom = undefined;
+        let tagTo = undefined;
+        const address = this.safeValue (transaction, 'address');
+        const tag = this.safeValue (transaction, 'memo');
+        const type = this.safeValue (transaction, 'type');
+        if (type === 'WITHDRAW') {
+            addressTo = address;
+            tagTo = tag;
+        }
+        if (type === 'DEPOSIT') {
+            addressFrom = address;
+            tagFrom = tag;
+        }
+        return {
+            'info': transaction,
+            'id': this.safeValue (transaction, 'id'),
+            'txid': this.safeValue (transaction, 'txhash'),
+            'timestamp': this.safeTimestamp (transaction, 'nonce'),
+            'datetime': this.safeValue (transaction, 'createdAt'),
+            'addressFrom': addressFrom,
+            'address': address,
+            'addressTo': addressTo,
+            'tagFrom': tagFrom,
+            'tag': tag,
+            'tagTo': tagTo,
+            'type': type.toLowerCase (),
+            'amount': this.safeFloat (transaction, 'amount'),
+            'currency': this.safeValue (transaction, 'symbol'),
+            'status': this.safeValue (transaction, 'status'),
+            'fee': undefined,
+        };
     }
 
     async withdraw (code, amount, address, tag = undefined, params = {}) {
