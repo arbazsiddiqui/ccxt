@@ -238,9 +238,9 @@ module.exports = class multi extends Exchange {
         return [
             timestamp,
             this.safeFloat (ohlcv, 1),
-            this.safeFloat (ohlcv, 2),
             this.safeFloat (ohlcv, 3),
             this.safeFloat (ohlcv, 4),
+            this.safeFloat (ohlcv, 2),
             this.safeFloat (ohlcv, 5),
         ];
     }
