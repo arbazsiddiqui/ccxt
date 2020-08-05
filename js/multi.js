@@ -3,7 +3,7 @@
 //  ---------------------------------------------------------------------------
 
 const Exchange = require ('./base/Exchange');
-const { OrderNotFound } = require ('./base/errors');
+const { OrderNotFound, BadRequest, ArgumentsRequired, AuthenticationError, InvalidOrder, DDoSProtection } = require ('./base/errors');
 //  ---------------------------------------------------------------------------
 
 module.exports = class multi extends Exchange {
@@ -13,6 +13,7 @@ module.exports = class multi extends Exchange {
             'name': 'multi',
             'countries': [ 'SG' ],
             'version': 'v1',
+            'rateLimit': 1000,
             'has': {
                 'fetchMarkets': true,
                 'fetchCurrencies': true,
@@ -94,6 +95,15 @@ module.exports = class multi extends Exchange {
                         'order/cancel',
                         'asset/withdraw',
                     ],
+                },
+            },
+            'exceptions': {
+                'exact': {
+                    '1': BadRequest,
+                    '701': ArgumentsRequired,
+                    '603': AuthenticationError,
+                    '10': InvalidOrder,
+                    '600': ArgumentsRequired,
                 },
             },
         });
@@ -708,8 +718,24 @@ module.exports = class multi extends Exchange {
         }
     }
 
+    handleErrors (code, reason, url, method, headers, body, response, requestHeaders, requestBody) {
+        const status = this.safeString (response, 'status');
+        if (code >= 200 && code < 300) {
+            return;
+        }
+        if (code === 429) {
+            throw new DDoSProtection (this.id + ' ' + body);
+        }
+        if (status === 'error') {
+            const errors = this.safeValue (response, 'errors');
+            const errorCode = this.safeString (errors[0], 'code');
+            const message = this.safeString (errors[0], 'message');
+            this.throwExactlyMatchedException (this.exceptions['exact'], errorCode, message);
+        }
+    }
+
     async request (path, api = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {
         const response = await this.fetch2 (path, api, method, params, headers, body);
-        return response['data'];
+        return this.safeValue (response, 'data');
     }
 };
