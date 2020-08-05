@@ -36,15 +36,25 @@ module.exports = class multi extends Exchange {
                 'fetchDeposits': true,
                 'fetchWithdrawals': true,
                 'fetchTransactions': true,
+                'fetchLedger': true,
                 'withdraw': true,
                 'transfer': false,
             },
             'timeframes': {
+                '1m': '1m',
+                '5m': '5m',
+                '10m': '10m',
+                '15m': '15m',
+                '30m': '30m',
                 '1h': '1h',
+                '2h': '2h',
                 '4h': '4h',
+                '6h': '6h',
                 '8h': '8h',
+                '12h': '12h',
                 '1d': '1d',
                 '1w': '1w',
+                '1M': '1M',
             },
             'urls': {
                 'logo': 'https://multi.io/en/static/img/icons/logo_white.svg',
@@ -162,7 +172,7 @@ module.exports = class multi extends Exchange {
                 'precision': precision,
                 'limits': {
                     'amount': {
-                        'min': this.safeFloat (currency, 'minAmount'),
+                        'min': undefined,
                         'max': undefined,
                     },
                     'price': {
@@ -197,7 +207,7 @@ module.exports = class multi extends Exchange {
         return this.parseOrderBook (response, timestamp * 1000);
     }
 
-    async fetchOHLCV (symbol, timeframe = '1h', since = 86400000, limit = undefined, params = {}) {
+    async fetchOHLCV (symbol, timeframe = '1h', since = undefined, limit = undefined, params = {}) {
         await this.loadMarkets ();
         const market = this.market (symbol);
         const request = {
@@ -207,20 +217,32 @@ module.exports = class multi extends Exchange {
         const intervalInSeconds = this.parseTimeframe (period);
         request['interval'] = intervalInSeconds;
         const now = this.seconds ();
-        if (since !== undefined) {
+        if (since === undefined) {
             if (limit !== undefined) {
                 const start = now - limit * intervalInSeconds;
                 request['start'] = parseInt (start);
-                request['end'] = parseInt (now);
-            } else {
-                request['end'] = parseInt (now);
             }
         } else {
-            request['start'] = parseInt (since / 1000);
-            request['end'] = parseInt (now);
+            const start = parseInt (since / 1000);
+            request['start'] = start;
+            if (limit !== undefined) {
+                request['end'] = parseInt (this.sum (start, limit * intervalInSeconds));
+            }
         }
         const response = await this.publicGetMarketKline (this.extend (request, params));
         return this.parseOHLCVs (response, market, timeframe, since, limit);
+    }
+
+    parseOHLCV (ohlcv, market = undefined) {
+        const timestamp = this.safeInteger (ohlcv, 0) * 1000;
+        return [
+            timestamp,
+            this.safeFloat (ohlcv, 1),
+            this.safeFloat (ohlcv, 2),
+            this.safeFloat (ohlcv, 3),
+            this.safeFloat (ohlcv, 4),
+            this.safeFloat (ohlcv, 5),
+        ];
     }
 
     async fetchTradingFees (params = {}) {
