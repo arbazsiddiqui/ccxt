@@ -3,7 +3,7 @@
 //  ---------------------------------------------------------------------------
 
 const Exchange = require ('./base/Exchange');
-const { OrderNotFound, BadRequest, ArgumentsRequired, AuthenticationError, InvalidOrder, DDoSProtection } = require ('./base/errors');
+const { OrderNotFound, BadRequest, ArgumentsRequired, AuthenticationError, InvalidOrder, DDoSProtection, ExchangeNotAvailable } = require ('./base/errors');
 //  ---------------------------------------------------------------------------
 
 module.exports = class multi extends Exchange {
@@ -59,7 +59,7 @@ module.exports = class multi extends Exchange {
             },
             'urls': {
                 'logo': 'https://multi.io/en/static/img/icons/logo_white.svg',
-                'api': 'https://staging-api.multi.io/api',
+                'api': 'https://api.multi.io/api',
                 'www': 'https://multi.io/',
                 'doc': 'https://docs.multi.io/',
             },
@@ -106,6 +106,7 @@ module.exports = class multi extends Exchange {
                     '600': ArgumentsRequired,
                 },
             },
+            'whitelistErrorsAPIs': [ 'order/pending/detail', 'order/completed/detail' ],
         });
     }
 
@@ -718,10 +719,25 @@ module.exports = class multi extends Exchange {
         }
     }
 
+    checkIfWhitelistedPath (url) {
+        let whitelistedUrl = false;
+        for (let i = 0; i < this.whitelistErrorsAPIs.length; i++) {
+            const path = this.whitelistErrorsAPIs[i];
+            if (url.indexOf (path) !== -1) {
+                whitelistedUrl = true;
+                break;
+            }
+        }
+        return whitelistedUrl;
+    }
+
     handleErrors (code, reason, url, method, headers, body, response, requestHeaders, requestBody) {
         const status = this.safeString (response, 'status');
         if (code >= 200 && code < 300) {
             return;
+        }
+        if (this.checkIfWhitelistedPath (url)) {
+            return; // default to defaultErrorHandler
         }
         if (code === 429) {
             throw new DDoSProtection (this.id + ' ' + body);
@@ -731,6 +747,34 @@ module.exports = class multi extends Exchange {
             const errorCode = this.safeString (errors[0], 'code');
             const message = this.safeString (errors[0], 'message');
             this.throwExactlyMatchedException (this.exceptions['exact'], errorCode, message);
+        }
+    }
+
+    defaultErrorHandler (code, reason, url, method, headers, body, response) {
+        if ((code >= 200) && (code <= 299)) {
+            return;
+        }
+        let details = body;
+        const codeAsString = code.toString ();
+        let ErrorClass = undefined;
+        if (this.checkIfWhitelistedPath (url)) {
+            return;
+        }
+        if (this.httpExceptions.indexOf (codeAsString) !== -1) {
+            ErrorClass = this.httpExceptions[codeAsString];
+        }
+        if (ErrorClass === ExchangeNotAvailable) {
+            details += ' (possible reasons: ' + [
+                'invalid API keys',
+                'bad or old nonce',
+                'exchange is down or offline',
+                'on maintenance',
+                'DDoS protection',
+                'rate-limiting',
+            ].join (', ') + ')';
+        }
+        if (ErrorClass !== undefined) {
+            throw new ErrorClass ([ this.id, method, url, code, reason, details ].join (' '));
         }
     }
 
