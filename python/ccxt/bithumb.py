@@ -114,13 +114,13 @@ class bithumb(Exchange):
         data = self.safe_value(response, 'data')
         currencyIds = list(data.keys())
         result = []
+        quote = self.safe_currency_code('KRW')
         for i in range(0, len(currencyIds)):
             currencyId = currencyIds[i]
             if currencyId == 'date':
                 continue
             market = data[currencyId]
-            base = currencyId
-            quote = 'KRW'
+            base = self.safe_currency_code(currencyId)
             symbol = currencyId + '/' + quote
             active = True
             if isinstance(market, list):
@@ -246,7 +246,7 @@ class bithumb(Exchange):
         baseVolume = self.safe_float(ticker, 'units_traded_24H')
         quoteVolume = self.safe_float(ticker, 'acc_trade_value_24H')
         vwap = None
-        if quoteVolume is not None and baseVolume is not None:
+        if (quoteVolume is not None) and (baseVolume is not None) and (baseVolume > 0):
             vwap = quoteVolume / baseVolume
         return {
             'symbol': symbol,

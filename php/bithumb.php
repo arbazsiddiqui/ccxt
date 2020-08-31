@@ -107,14 +107,14 @@ class bithumb extends Exchange {
         $data = $this->safe_value($response, 'data');
         $currencyIds = is_array($data) ? array_keys($data) : array();
         $result = array();
+        $quote = $this->safe_currency_code('KRW');
         for ($i = 0; $i < count($currencyIds); $i++) {
             $currencyId = $currencyIds[$i];
             if ($currencyId === 'date') {
                 continue;
             }
             $market = $data[$currencyId];
-            $base = $currencyId;
-            $quote = 'KRW';
+            $base = $this->safe_currency_code($currencyId);
             $symbol = $currencyId . '/' . $quote;
             $active = true;
             if (gettype($market) === 'array' && count(array_filter(array_keys($market), 'is_string')) == 0) {
@@ -251,7 +251,7 @@ class bithumb extends Exchange {
         $baseVolume = $this->safe_float($ticker, 'units_traded_24H');
         $quoteVolume = $this->safe_float($ticker, 'acc_trade_value_24H');
         $vwap = null;
-        if ($quoteVolume !== null && $baseVolume !== null) {
+        if (($quoteVolume !== null) && ($baseVolume !== null) && ($baseVolume > 0)) {
             $vwap = $quoteVolume / $baseVolume;
         }
         return array(
@@ -396,7 +396,7 @@ class bithumb extends Exchange {
             }
         }
         if ($timestamp !== null) {
-            $timestamp -= 9 * 3600000; // they report UTC . 9 hours, server in Korean timezone
+            $timestamp -= 9 * 3600000; // they report UTC + 9 hours, server in Korean timezone
         }
         $type = null;
         $side = $this->safe_string($trade, 'type');

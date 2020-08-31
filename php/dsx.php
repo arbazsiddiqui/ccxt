@@ -19,19 +19,26 @@ class dsx extends Exchange {
             'rateLimit' => 1500,
             'version' => 'v3',
             'has' => array(
+                'cancelOrder' => true,
                 'CORS' => false,
-                'createMarketOrder' => false,
-                'fetchOHLCV' => true,
-                'fetchOrder' => true,
-                'fetchOrders' => true,
-                'fetchOpenOrders' => true,
-                'fetchClosedOrders' => false,
-                'fetchOrderBooks' => true,
                 'createDepositAddress' => true,
+                'createMarketOrder' => false,
+                'createOrder' => true,
+                'fetchBalance' => true,
+                'fetchClosedOrders' => false,
                 'fetchDepositAddress' => true,
-                'fetchTransactions' => true,
-                'fetchTickers' => true,
+                'fetchMarkets' => true,
                 'fetchMyTrades' => true,
+                'fetchOHLCV' => true,
+                'fetchOpenOrders' => true,
+                'fetchOrder' => true,
+                'fetchOrderBook' => true,
+                'fetchOrderBooks' => true,
+                'fetchOrders' => true,
+                'fetchTicker' => true,
+                'fetchTickers' => true,
+                'fetchTransactions' => true,
+                'fetchTrades' => true,
                 'withdraw' => true,
             ),
             'urls' => array(
@@ -965,9 +972,6 @@ class dsx extends Exchange {
             'orderId' => $id,
         );
         $response = $this->privatePostOrderCancel (array_merge($request, $params));
-        if (is_array($this->orders) && array_key_exists($id, $this->orders)) {
-            $this->orders[$id]['status'] = 'canceled';
-        }
         return $response;
     }
 

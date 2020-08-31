@@ -31,24 +31,32 @@ class hitbtc(Exchange):
             'version': '2',
             'pro': True,
             'has': {
-                'createDepositAddress': True,
-                'fetchDepositAddress': True,
+                'cancelOrder': True,
                 'CORS': False,
+                'createDepositAddress': True,
+                'createOrder': True,
                 'editOrder': True,
-                'fetchCurrencies': True,
-                'fetchOHLCV': True,
-                'fetchTickers': True,
-                'fetchOrder': True,
-                'fetchOrders': False,
-                'fetchOpenOrders': True,
+                'fetchBalance': True,
                 'fetchClosedOrders': True,
-                'fetchMyTrades': True,
-                'withdraw': True,
-                'fetchOrderTrades': False,  # not implemented yet
+                'fetchCurrencies': True,
+                'fetchDepositAddress': True,
                 'fetchDeposits': False,
-                'fetchWithdrawals': False,
-                'fetchTransactions': True,
+                'fetchMarkets': True,
+                'fetchMyTrades': True,
+                'fetchOHLCV': True,
+                'fetchOpenOrder': True,
+                'fetchOpenOrders': True,
+                'fetchOrder': True,
+                'fetchOrderBook': True,
+                'fetchOrders': False,
+                'fetchOrderTrades': True,
+                'fetchTicker': True,
+                'fetchTickers': True,
+                'fetchTrades': True,
                 'fetchTradingFee': True,
+                'fetchTransactions': True,
+                'fetchWithdrawals': False,
+                'withdraw': True,
             },
             'timeframes': {
                 '1m': 'M1',
@@ -167,6 +175,7 @@ class hitbtc(Exchange):
                 'UNC': 'Unigame',
                 'USD': 'USDT',
                 'XBT': 'BTC',
+                'PNT': 'Penta',
             },
             'exceptions': {
                 '504': RequestTimeout,  # {"error":{"code":504,"message":"Gateway Timeout"}}
@@ -179,6 +188,7 @@ class hitbtc(Exchange):
                 '20002': OrderNotFound,  # canceling non-existent order
                 '20001': InsufficientFunds,  # {"error":{"code":20001,"message":"Insufficient funds","description":"Check that the funds are sufficient, given commissions"}}
             },
+            'orders': {},  # orders cache / emulation
         })
 
     def fee_to_precision(self, symbol, fee):

@@ -19,9 +19,16 @@ class exx extends Exchange {
             'rateLimit' => 1000 / 10,
             'userAgent' => $this->userAgents['chrome'],
             'has' => array(
-                'fetchOrder' => true,
-                'fetchTickers' => true,
+                'cancelOrder' => true,
+                'createOrder' => true,
+                'fetchBalance' => true,
+                'fetchMarkets' => true,
                 'fetchOpenOrders' => true,
+                'fetchOrder' => true,
+                'fetchOrderBook' => true,
+                'fetchTicker' => true,
+                'fetchTickers' => true,
+                'fetchTrades' => true,
             ),
             'urls' => array(
                 'logo' => 'https://user-images.githubusercontent.com/1294454/37770292-fbf613d0-2de4-11e8-9f79-f2dc451b8ccb.jpg',
@@ -352,7 +359,6 @@ class exx extends Exchange {
             'type' => $side,
             'info' => $response,
         ), $market);
-        $this->orders[$id] = $order;
         return $order;
     }
 
@@ -385,7 +391,7 @@ class exx extends Exchange {
             'currency' => $market['id'],
         );
         $response = $this->privateGetGetOpenOrders (array_merge($request, $params));
-        if (!gettype($response) === 'array' && count(array_filter(array_keys($response), 'is_string')) == 0) {
+        if (gettype($response) !== 'array' || count(array_filter(array_keys($response), 'is_string')) != 0) {
             return array();
         }
         return $this->parse_orders($response, $market, $since, $limit);

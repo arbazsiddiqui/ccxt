@@ -22,7 +22,7 @@
 
 # ----------------------------------------------------------------------------
 
-__version__ = '1.32.23'
+__version__ = '1.33.74'
 
 # ----------------------------------------------------------------------------
 
@@ -84,6 +84,7 @@ from ccxt.bitfinex import bitfinex                          # noqa: F401
 from ccxt.bitfinex2 import bitfinex2                        # noqa: F401
 from ccxt.bitflyer import bitflyer                          # noqa: F401
 from ccxt.bitforex import bitforex                          # noqa: F401
+from ccxt.bitget import bitget                              # noqa: F401
 from ccxt.bithumb import bithumb                            # noqa: F401
 from ccxt.bitkk import bitkk                                # noqa: F401
 from ccxt.bitmart import bitmart                            # noqa: F401
@@ -137,7 +138,6 @@ from ccxt.fcoinjp import fcoinjp                            # noqa: F401
 from ccxt.flowbtc import flowbtc                            # noqa: F401
 from ccxt.foxbit import foxbit                              # noqa: F401
 from ccxt.ftx import ftx                                    # noqa: F401
-from ccxt.fybse import fybse                                # noqa: F401
 from ccxt.gateio import gateio                              # noqa: F401
 from ccxt.gemini import gemini                              # noqa: F401
 from ccxt.hbtc import hbtc                                  # noqa: F401
@@ -208,6 +208,7 @@ exchanges = [
     'bitfinex2',
     'bitflyer',
     'bitforex',
+    'bitget',
     'bithumb',
     'bitkk',
     'bitmart',
@@ -261,7 +262,6 @@ exchanges = [
     'flowbtc',
     'foxbit',
     'ftx',
-    'fybse',
     'gateio',
     'gemini',
     'hbtc',

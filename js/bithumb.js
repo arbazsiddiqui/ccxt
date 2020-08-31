@@ -104,14 +104,14 @@ module.exports = class bithumb extends Exchange {
         const data = this.safeValue (response, 'data');
         const currencyIds = Object.keys (data);
         const result = [];
+        const quote = this.safeCurrencyCode ('KRW');
         for (let i = 0; i < currencyIds.length; i++) {
             const currencyId = currencyIds[i];
             if (currencyId === 'date') {
                 continue;
             }
             const market = data[currencyId];
-            const base = currencyId;
-            const quote = 'KRW';
+            const base = this.safeCurrencyCode (currencyId);
             const symbol = currencyId + '/' + quote;
             let active = true;
             if (Array.isArray (market)) {
@@ -248,7 +248,7 @@ module.exports = class bithumb extends Exchange {
         const baseVolume = this.safeFloat (ticker, 'units_traded_24H');
         const quoteVolume = this.safeFloat (ticker, 'acc_trade_value_24H');
         let vwap = undefined;
-        if (quoteVolume !== undefined && baseVolume !== undefined) {
+        if ((quoteVolume !== undefined) && (baseVolume !== undefined) && (baseVolume > 0)) {
             vwap = quoteVolume / baseVolume;
         }
         return {

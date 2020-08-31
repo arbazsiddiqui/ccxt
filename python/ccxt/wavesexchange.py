@@ -30,19 +30,21 @@ class wavesexchange(Exchange):
             'certified': True,
             'pro': False,
             'has': {
-                'fetchTicker': True,
+                'cancelOrder': True,
+                'createMarketOrder': False,
+                'createOrder': True,
+                'fetchBalance': True,
+                'fetchClosedOrders': True,
+                'fetchDepositAddress': True,
+                'fetchMarkets': True,
+                'fetchMyTrades': True,
+                'fetchOHLCV': True,
+                'fetchOpenOrders': True,
                 'fetchOrderBook': True,
                 'fetchOrders': True,
-                'fetchOpenOrders': True,
-                'fetchClosedOrders': True,
-                'fetchMyTrades': True,
+                'fetchTicker': True,
                 'fetchTrades': True,
-                'fetchBalance': True,
-                'createOrder': True,
-                'cancelOrder': True,
-                'fetchDepositAddress': True,
-                'fetchOHLCV': True,
-                'createMarketOrder': False,
+                'withdraw': True,
             },
             'timeframes': {
                 '1m': '1m',
@@ -1226,10 +1228,8 @@ class wavesexchange(Exchange):
             code = None
             if currencyId in self.currencies_by_id:
                 code = self.safe_currency_code(currencyId)
-            else:
-                code = self.safe_currency_code(self.safe_string(issueTransaction, 'name'))
-            result[code] = self.account()
-            result[code]['total'] = self.from_wei(balance, decimals)
+                result[code] = self.account()
+                result[code]['total'] = self.from_wei(balance, decimals)
         timestamp = self.milliseconds()
         byteArray = [
             self.base58_to_binary(self.apiKey),

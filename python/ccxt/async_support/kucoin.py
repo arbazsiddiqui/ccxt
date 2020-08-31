@@ -797,21 +797,26 @@ class kucoin(Exchange):
         #
         data = self.safe_value(response, 'data', {})
         timestamp = self.milliseconds()
+        id = self.safe_string(data, 'orderId')
         order = {
-            'id': self.safe_string(data, 'orderId'),
+            'id': id,
+            'clientOrderId': clientOrderId,
+            'info': data,
+            'timestamp': timestamp,
+            'datetime': self.iso8601(timestamp),
+            'lastTradeTimestamp': None,
             'symbol': symbol,
             'type': type,
             'side': side,
             'price': price,
+            'amount': None,
             'cost': None,
+            'average': None,
             'filled': None,
             'remaining': None,
-            'timestamp': timestamp,
-            'datetime': self.iso8601(timestamp),
+            'status': None,
             'fee': None,
-            'status': 'open',
-            'clientOrderId': clientOrderId,
-            'info': data,
+            'trades': None,
         }
         if not self.safe_value(params, 'quoteAmount'):
             order['amount'] = amount
@@ -1231,6 +1236,8 @@ class kucoin(Exchange):
                 'rate': self.safe_float(trade, 'feeRate'),
             }
         type = self.safe_string(trade, 'type')
+        if type == 'match':
+            type = None
         cost = self.safe_float_2(trade, 'funds', 'dealValue')
         if cost is None:
             if amount is not None:

@@ -19,24 +19,26 @@ class currencycom extends Exchange {
             'name' => 'Currency.com',
             'countries' => array( 'BY' ), // Belarus
             'rateLimit' => 500,
-            'certified' => false,
+            'certified' => true,
+            'pro' => true,
             'version' => 'v1',
             // new metainfo interface
             'has' => array(
-                'CORS' => false,
                 'cancelOrder' => true,
+                'CORS' => false,
                 'createOrder' => true,
                 'fetchAccounts' => true,
+                'fetchBalance' => true,
                 'fetchMarkets' => true,
+                'fetchMyTrades' => true,
+                'fetchOHLCV' => true,
+                'fetchOpenOrders' => true,
                 'fetchOrderBook' => true,
                 'fetchTicker' => true,
                 'fetchTickers' => true,
+                'fetchTime' => true,
                 'fetchTradingFees' => true,
-                'fetchOHLCV' => true,
                 'fetchTrades' => true,
-                'fetchMyTrades' => true,
-                'fetchBalance' => true,
-                'fetchOpenOrders' => true,
             ),
             'timeframes' => array(
                 '1m' => '1m',
@@ -383,9 +385,7 @@ class currencycom extends Exchange {
         );
     }
 
-    public function fetch_balance($params = array ()) {
-        $this->load_markets();
-        $response = $this->privateGetAccount ($params);
+    public function parse_balance_response($response) {
         //
         //     {
         //         "makerCommission":0.20,
@@ -420,6 +420,34 @@ class currencycom extends Exchange {
             $result[$code] = $account;
         }
         return $this->parse_balance($result);
+    }
+
+    public function fetch_balance($params = array ()) {
+        $this->load_markets();
+        $response = $this->privateGetAccount ($params);
+        //
+        //     {
+        //         "makerCommission":0.20,
+        //         "takerCommission":0.20,
+        //         "buyerCommission":0.20,
+        //         "sellerCommission":0.20,
+        //         "canTrade":true,
+        //         "canWithdraw":true,
+        //         "canDeposit":true,
+        //         "updateTime":1591056268,
+        //         "balances":array(
+        //             array(
+        //                 "accountId":5470306579272968,
+        //                 "collateralCurrency":true,
+        //                 "asset":"ETH",
+        //                 "free":0.0,
+        //                 "locked":0.0,
+        //                 "default":false,
+        //             ),
+        //         )
+        //     }
+        //
+        return $this->parse_balance_response($response);
     }
 
     public function fetch_order_book($symbol, $limit = null, $params = array ()) {

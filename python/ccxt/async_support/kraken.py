@@ -43,25 +43,32 @@ class kraken(Exchange):
             'certified': True,
             'pro': True,
             'has': {
+                'cancelOrder': True,
+                'CORS': False,
                 'createDepositAddress': True,
+                'createOrder': True,
+                'fetchBalance': True,
+                'fetchClosedOrders': True,
+                'fetchCurrencies': True,
                 'fetchDepositAddress': True,
+                'fetchDeposits': True,
+                'fetchLedger': True,
+                'fetchLedgerEntry': True,
+                'fetchMarkets': True,
+                'fetchMyTrades': True,
+                'fetchOHLCV': True,
+                'fetchOpenOrders': True,
+                'fetchOrder': True,
+                'fetchOrderBook': True,
+                'fetchOrderTrades': 'emulated',
+                'fetchTicker': True,
+                'fetchTickers': True,
+                'fetchTime': True,
+                'fetchTrades': True,
                 'fetchTradingFee': True,
                 'fetchTradingFees': True,
-                'CORS': False,
-                'fetchCurrencies': True,
-                'fetchTickers': True,
-                'fetchOHLCV': True,
-                'fetchOrder': True,
-                'fetchOpenOrders': True,
-                'fetchClosedOrders': True,
-                'fetchMyTrades': True,
                 'fetchWithdrawals': True,
-                'fetchDeposits': True,
                 'withdraw': True,
-                'fetchLedgerEntry': True,
-                'fetchLedger': True,
-                'fetchOrderTrades': 'emulated',
-                'fetchTime': True,
             },
             'marketsByAltname': {},
             'timeframes': {
@@ -540,8 +547,8 @@ class kraken(Exchange):
         await self.load_markets()
         symbols = self.symbols if (symbols is None) else symbols
         marketIds = []
-        for i in range(0, len(self.symbols)):
-            symbol = self.symbols[i]
+        for i in range(0, len(symbols)):
+            symbol = symbols[i]
             market = self.markets[symbol]
             if market['active'] and not market['darkpool']:
                 marketIds.append(market['id'])
@@ -939,8 +946,8 @@ class kraken(Exchange):
             'symbol': symbol,
             'type': type,
             'side': side,
-            'price': price,
-            'amount': amount,
+            'price': None,
+            'amount': None,
             'cost': None,
             'average': None,
             'filled': None,

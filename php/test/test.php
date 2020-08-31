@@ -1,9 +1,14 @@
 <?php
 
+namespace ccxt;
 error_reporting(E_ALL | E_STRICT);
 date_default_timezone_set('UTC');
 
 include_once 'ccxt.php';
+include_once 'test_trade.php';
+include_once 'test_order.php';
+include_once 'test_ohlv.php';
+include_once 'test_transaction.php';
 
 function style($s, $style) {
     return $style . $s . "\033[0m";
@@ -70,7 +75,6 @@ foreach ($config as $id => $params) {
 }
 
 $exchanges['coinbasepro']->urls['api'] = $exchanges['coinbasepro']->urls['test'];
-$exchanges['anxpro']->proxy = 'https://cors-anywhere.herokuapp.com/';
 
 function test_ticker($exchange, $symbol) {
     $delay = $exchange->rateLimit * 1000;
@@ -108,11 +112,121 @@ function test_trades($exchange, $symbol) {
 
         dump(green($symbol), 'fetching trades...');
         $trades = $exchange->fetch_trades($symbol);
+        if (count($trades) > 0) {
+            test_trade($exchange, $trades[0], $symbol, time() * 1000);
+        }
         dump(green($symbol), 'fetched', green(count($trades)), 'trades');
     } else {
-        dump(green($symbol), 'fetchTrades () not supported');
+        dump(green($symbol), 'fetchTrades() not supported');
     }
 }
+
+//-----------------------------------------------------------------------------
+
+function test_orders($exchange, $symbol) {
+    if ($exchange->has['fetchOrders']) {
+        $delay = $exchange->rateLimit * 1000;
+        usleep($delay);
+
+        dump(green($symbol), 'fetching orders...');
+        $orders = $exchange->fetch_orders($symbol);
+        foreach ($orders as $order) {
+            test_order($exchange, $order, $symbol, time() * 1000);
+        }
+        dump(green($symbol), 'fetched', green(count($orders)), 'orders');
+    } else {
+        dump(green($symbol), 'fetchOrders() not supported');
+    }
+}
+
+//-----------------------------------------------------------------------------
+
+function test_closed_orders($exchange, $symbol) {
+    if ($exchange->has['fetchClosedOrders']) {
+        $delay = $exchange->rateLimit * 1000;
+        usleep($delay);
+
+        dump(green($symbol), 'fetching closed orders...');
+        $orders = $exchange->fetch_closed_orders($symbol);
+        foreach ($orders as $order) {
+            test_order($exchange, $order, $symbol, time() * 1000);
+            assert($order['status'] === 'closed' || $order['status'] === 'canceled');
+        }
+        dump(green($symbol), 'fetched', green(count($orders)), 'closed orders');
+    } else {
+        dump(green($symbol), 'fetchClosedOrders() not supported');
+    }
+}
+
+//-----------------------------------------------------------------------------
+
+function test_open_orders($exchange, $symbol) {
+    if ($exchange->has['fetchOpenOrders']) {
+        $delay = $exchange->rateLimit * 1000;
+        usleep($delay);
+
+        dump(green($symbol), 'fetching open orders...');
+        $orders = $exchange->fetch_open_orders($symbol);
+        foreach ($orders as $order) {
+            test_order($exchange, $order, $symbol, time() * 1000);
+            assert($order['status'] === 'open');
+        }
+        dump(green($symbol), 'fetched', green(count($orders)), 'open orders');
+    } else {
+        dump(green($symbol), 'fetchOpenOrders() not supported');
+    }
+}
+
+//-----------------------------------------------------------------------------
+
+function test_transactions($exchange, $symbol) {
+    if ($exchange->has['fetchTransactions']) {
+        $delay = $exchange->rateLimit * 1000;
+        usleep($delay);
+
+        dump(green($symbol), 'fetching transactions...');
+        $transactions = $exchange->fetch_transactions($symbol);
+        foreach ($transactions as $transaction) {
+            test_transaction($exchange, $transaction, $symbol, time() * 1000);
+        }
+        dump(green($symbol), 'fetched', green(count($transactions)), 'transactions');
+    } else {
+        dump(green($symbol), 'fetchTransactions() not supported');
+    }
+}
+
+//-----------------------------------------------------------------------------
+
+function test_ohlcvs($exchange, $symbol) {
+    $ignored_exchanges = array(
+        'cex',
+        'okex',
+        'okexusd',
+    );
+    if (array_key_exists($exchange->id, $ignored_exchanges)) {
+        return;
+    }
+    if ($exchange->has['fetchOHLCV']) {
+        $delay = $exchange->rateLimit * 1000;
+        usleep($delay);
+
+        $timeframes = $exchange->timeframes ? $exchange->timeframes : array('1d' => '1d');
+        $timeframe = array_keys($timeframes)[0];
+        $limit = 10;
+        $duration = $exchange->parse_timeframe($timeframe);
+        $since = $exchange->milliseconds() - $duration * $limit * 1000 - 1000;
+        dump(green($symbol), 'fetching ohlcvs...');
+        $ohlcvs = $exchange->fetch_ohlcv($symbol, $timeframe, $since, $limit);
+        foreach ($ohlcvs as $ohlcv) {
+            test_ohlcv($exchange, $ohlcv, $symbol, time() * 1000);
+        }
+        dump(green($symbol), 'fetched', green(count($ohlcvs)), 'ohlcvs');
+    } else {
+        dump(green($symbol), 'fetchOHLCV() not supported');
+    }
+}
+
+//-----------------------------------------------------------------------------
 
 function test_symbol($exchange, $symbol) {
     test_ticker($exchange, $symbol);
@@ -120,9 +234,15 @@ function test_symbol($exchange, $symbol) {
         dump(var_export($exchange->fetchGlobal()));
     } else {
         test_order_book($exchange, $symbol);
+        test_trades($exchange, $symbol);
+        test_ohlcvs($exchange, $symbol);
+        if ($exchange->apiKey) {
+            test_orders($exchange, $symbol);
+            test_closed_orders($exchange, $symbol);
+            test_open_orders($exchange, $symbol);
+            test_transactions($exchange, $symbol);
+        }
     }
-
-    test_trades($exchange, $symbol);
 }
 
 function load_exchange($exchange) {
@@ -175,6 +295,7 @@ function test_exchange($exchange) {
     $symbol = is_array($exchange->symbols) ? current($exchange->symbols) : '';
     $symbols = array(
         'BTC/USD',
+        'BTC/USDT',
         'BTC/CNY',
         'BTC/EUR',
         'BTC/ETH',

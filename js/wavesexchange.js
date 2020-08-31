@@ -17,19 +17,21 @@ module.exports = class wavesexchange extends Exchange {
             'certified': true,
             'pro': false,
             'has': {
-                'fetchTicker': true,
+                'cancelOrder': true,
+                'createMarketOrder': false,
+                'createOrder': true,
+                'fetchBalance': true,
+                'fetchClosedOrders': true,
+                'fetchDepositAddress': true,
+                'fetchMarkets': true,
+                'fetchMyTrades': true,
+                'fetchOHLCV': true,
+                'fetchOpenOrders': true,
                 'fetchOrderBook': true,
                 'fetchOrders': true,
-                'fetchOpenOrders': true,
-                'fetchClosedOrders': true,
-                'fetchMyTrades': true,
+                'fetchTicker': true,
                 'fetchTrades': true,
-                'fetchBalance': true,
-                'createOrder': true,
-                'cancelOrder': true,
-                'fetchDepositAddress': true,
-                'fetchOHLCV': true,
-                'createMarketOrder': false,
+                'withdraw': true,
             },
             'timeframes': {
                 '1m': '1m',
@@ -1293,11 +1295,9 @@ module.exports = class wavesexchange extends Exchange {
             let code = undefined;
             if (currencyId in this.currencies_by_id) {
                 code = this.safeCurrencyCode (currencyId);
-            } else {
-                code = this.safeCurrencyCode (this.safeString (issueTransaction, 'name'));
+                result[code] = this.account ();
+                result[code]['total'] = this.fromWei (balance, decimals);
             }
-            result[code] = this.account ();
-            result[code]['total'] = this.fromWei (balance, decimals);
         }
         const timestamp = this.milliseconds ();
         const byteArray = [

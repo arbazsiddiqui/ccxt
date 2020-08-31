@@ -45,24 +45,31 @@ class okex(Exchange):
             'rateLimit': 1000,  # up to 3000 requests per 5 minutes ≈ 600 requests per minute ≈ 10 requests per second ≈ 100 ms
             'pro': True,
             'has': {
+                'cancelOrder': True,
                 'CORS': False,
-                'fetchOHLCV': True,
-                'fetchOrder': True,
-                'fetchOrders': False,
-                'fetchOpenOrders': True,
+                'createOrder': True,
+                'fetchBalance': True,
                 'fetchClosedOrders': True,
                 'fetchCurrencies': False,  # see below
-                'fetchDeposits': True,
-                'fetchWithdrawals': True,
-                'fetchTime': True,
-                'fetchTransactions': False,
-                'fetchMyTrades': True,
                 'fetchDepositAddress': True,
-                'fetchOrderTrades': True,
-                'fetchTickers': True,
+                'fetchDeposits': True,
                 'fetchLedger': True,
-                'withdraw': True,
+                'fetchMarkets': True,
+                'fetchMyTrades': True,
+                'fetchOHLCV': True,
+                'fetchOpenOrders': True,
+                'fetchOrder': True,
+                'fetchOrderBook': True,
+                'fetchOrders': False,
+                'fetchOrderTrades': True,
+                'fetchTime': True,
+                'fetchTicker': True,
+                'fetchTickers': True,
+                'fetchTrades': True,
+                'fetchTransactions': False,
+                'fetchWithdrawals': True,
                 'futures': True,
+                'withdraw': True,
             },
             'timeframes': {
                 '1m': '60',
@@ -137,6 +144,7 @@ class okex(Exchange):
                         'instruments/{instrument_id}/ticker',
                         'instruments/{instrument_id}/trades',
                         'instruments/{instrument_id}/candles',
+                        'instruments/{instrument_id}/history/candles',
                     ],
                     'post': [
                         'order_algo',
@@ -201,6 +209,7 @@ class okex(Exchange):
                         'instruments/{instrument_id}/ticker',
                         'instruments/{instrument_id}/trades',
                         'instruments/{instrument_id}/candles',
+                        'instruments/{instrument_id}/history/candles',
                         'instruments/{instrument_id}/index',
                         'rate',
                         'instruments/{instrument_id}/estimated_price',
@@ -245,6 +254,7 @@ class okex(Exchange):
                         'instruments/{instrument_id}/ticker',
                         'instruments/{instrument_id}/trades',
                         'instruments/{instrument_id}/candles',
+                        'instruments/{instrument_id}/history/candles',
                         'instruments/{instrument_id}/index',
                         'rate',
                         'instruments/{instrument_id}/open_interest',
@@ -1340,21 +1350,35 @@ class okex(Exchange):
     async def fetch_ohlcv(self, symbol, timeframe='1m', since=None, limit=None, params={}):
         await self.load_markets()
         market = self.market(symbol)
-        method = market['type'] + 'GetInstrumentsInstrumentIdCandles'
+        method = None
+        duration = self.parse_timeframe(timeframe)
         request = {
             'instrument_id': market['id'],
             'granularity': self.timeframes[timeframe],
         }
-        duration = self.parse_timeframe(timeframe)
-        if since is not None:
-            if limit is not None:
-                request['end'] = self.iso8601(self.sum(since, limit * duration * 1000))
-            request['start'] = self.iso8601(since)
+        if market['option'] or market['spot']:
+            method = market['type'] + 'GetInstrumentsInstrumentIdCandles'
+            if since is not None:
+                if limit is not None:
+                    request['end'] = self.iso8601(self.sum(since, limit * duration * 1000))
+                request['start'] = self.iso8601(since)
+            else:
+                if limit is not None:
+                    now = self.milliseconds()
+                    request['start'] = self.iso8601(now - limit * duration * 1000)
+                    request['end'] = self.iso8601(now)
         else:
-            now = self.milliseconds()
-            if limit is not None:
-                request['start'] = self.iso8601(now - limit * duration * 1000)
-                request['end'] = self.iso8601(now)
+            method = market['type'] + 'GetInstrumentsInstrumentIdHistoryCandles'
+            if since is not None:
+                if limit is None:
+                    limit = 300  # default
+                request['start'] = self.iso8601(self.sum(since, limit * duration * 1000))
+                request['end'] = self.iso8601(since)
+            else:
+                if limit is not None:
+                    now = self.milliseconds()
+                    request['end'] = self.iso8601(now - limit * duration * 1000)
+                    request['start'] = self.iso8601(now)
         response = await getattr(self, method)(self.extend(request, params))
         #
         # spot markets
@@ -1571,9 +1595,27 @@ class okex(Exchange):
             code = self.safe_currency_code(id)
             balance = self.safe_value(info, id, {})
             account = self.account()
+            totalAvailBalance = self.safe_float(balance, 'total_avail_balance')
+            if self.safe_string(balance, 'margin_mode') == 'fixed':
+                contracts = self.safe_value(balance, 'contracts', [])
+                free = totalAvailBalance
+                for i in range(0, len(contracts)):
+                    contract = contracts[i]
+                    fixedBalance = self.safe_float(contract, 'fixed_balance')
+                    realizedPnl = self.safe_float(contract, 'realized_pnl')
+                    marginFrozen = self.safe_float(contract, 'margin_frozen')
+                    marginForUnfilled = self.safe_float(contract, 'margin_for_unfilled')
+                    margin = self.sum(fixedBalance, realizedPnl) - marginFrozen - marginForUnfilled
+                    free = self.sum(free, margin)
+                account['free'] = free
+            else:
+                realizedPnl = self.safe_float(balance, 'realized_pnl')
+                unrealizedPnl = self.safe_float(balance, 'unrealized_pnl')
+                marginFrozen = self.safe_float(balance, 'margin_frozen')
+                marginForUnfilled = self.safe_float(balance, 'margin_for_unfilled')
+                account['free'] = self.sum(totalAvailBalance, realizedPnl, unrealizedPnl) - marginFrozen - marginForUnfilled
             # it may be incorrect to use total, free and used for swap accounts
             account['total'] = self.safe_float(balance, 'equity')
-            account['free'] = self.safe_float(balance, 'total_avail_balance')
             result[code] = account
         return self.parse_balance(result)
 
@@ -1783,7 +1825,10 @@ class okex(Exchange):
             })
             orderType = self.safe_string(params, 'order_type')
             # order_type == '4' means a market order
-            if orderType != '4':
+            isMarketOrder = (type == 'market') or (orderType == '4')
+            if isMarketOrder:
+                request['match_price'] = '1'
+            else:
                 request['price'] = self.price_to_precision(symbol, price)
             if market['futures']:
                 request['leverage'] = '10'  # or '20'
@@ -2916,6 +2961,9 @@ class okex(Exchange):
         isArray = isinstance(response[0], list)
         isMargin = (type == 'margin')
         entries = response[0] if (isMargin and isArray) else response
+        if type == 'swap':
+            ledgerEntries = self.parse_ledger(entries)
+            return self.filter_by_symbol_since_limit(ledgerEntries, code, since, limit)
         return self.parse_ledger(entries, currency, since, limit)
 
     def parse_ledger_entry_type(self, type):
@@ -3023,6 +3071,11 @@ class okex(Exchange):
         before = None
         after = self.safe_float(item, 'balance')
         status = 'ok'
+        marketId = self.safe_string(item, 'instrument_id')
+        symbol = None
+        if marketId in self.markets_by_id:
+            market = self.markets_by_id[marketId]
+            symbol = market['symbol']
         return {
             'info': item,
             'id': id,
@@ -3031,6 +3084,7 @@ class okex(Exchange):
             'referenceAccount': referenceAccount,
             'type': type,
             'currency': code,
+            'symbol': symbol,
             'amount': amount,
             'before': before,  # balance before
             'after': after,  # balance after

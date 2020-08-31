@@ -123,6 +123,7 @@ class eterbase extends Exchange {
                 'exact' => array(
                     'Invalid cost' => '\\ccxt\\InvalidOrder', // array("message":"Invalid cost","_links":array("self":array("href":"/orders","templated":false)))
                     'Invalid order ID' => '\\ccxt\\InvalidOrder', // array("message":"Invalid order ID","_links":array("self":array("href":"/orders/4a151805-d594-4a96-9d64-e3984f2441f7","templated":false)))
+                    'Invalid market !' => '\\ccxt\\BadSymbol', // array("message":"Invalid market !","_links":array("self":array("href":"/markets/300/order-book","templated":false)))
                 ),
                 'broad' => array(
                     'Failed to convert argument' => '\\ccxt\\BadRequest',
@@ -363,7 +364,7 @@ class eterbase extends Exchange {
         $baseVolume = $this->safe_float($ticker, 'volumeBase');
         $quoteVolume = $this->safe_float($ticker, 'volume');
         $vwap = null;
-        if (($quoteVolume !== null) && ($baseVolume !== null) && $baseVolume) {
+        if (($quoteVolume !== null) && ($baseVolume !== null) && ($baseVolume > 0)) {
             $vwap = $quoteVolume / $baseVolume;
         }
         $percentage = $this->safe_float($ticker, 'change');

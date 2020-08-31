@@ -247,6 +247,9 @@ class bitpanda(Exchange):
                 'broad': {
                 },
             },
+            'commonCurrencies': {
+                'MIOTA': 'IOTA',  # https://github.com/ccxt/ccxt/issues/7487
+            },
         })
 
     def fetch_time(self, params={}):
@@ -513,7 +516,7 @@ class bitpanda(Exchange):
         baseVolume = self.safe_float(ticker, 'base_volume')
         quoteVolume = self.safe_float(ticker, 'quote_volume')
         vwap = None
-        if (quoteVolume is not None) and (baseVolume is not None) and (baseVolume != 0):
+        if (quoteVolume is not None) and (baseVolume is not None) and (baseVolume > 0):
             vwap = quoteVolume / baseVolume
         return {
             'symbol': symbol,

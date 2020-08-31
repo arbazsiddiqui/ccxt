@@ -236,6 +236,9 @@ module.exports = class bitpanda extends Exchange {
                 'broad': {
                 },
             },
+            'commonCurrencies': {
+                'MIOTA': 'IOTA', // https://github.com/ccxt/ccxt/issues/7487
+            },
         });
     }
 
@@ -520,7 +523,7 @@ module.exports = class bitpanda extends Exchange {
         const baseVolume = this.safeFloat (ticker, 'base_volume');
         const quoteVolume = this.safeFloat (ticker, 'quote_volume');
         let vwap = undefined;
-        if ((quoteVolume !== undefined) && (baseVolume !== undefined) && (baseVolume !== 0)) {
+        if ((quoteVolume !== undefined) && (baseVolume !== undefined) && (baseVolume > 0)) {
             vwap = quoteVolume / baseVolume;
         }
         return {

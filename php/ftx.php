@@ -33,11 +33,15 @@ class ftx extends Exchange {
             ),
             'has' => array(
                 'cancelAllOrders' => true,
+                'cancelOrder' => true,
+                'createOrder' => true,
+                'fetchBalance' => true,
                 'fetchClosedOrders' => false,
                 'fetchCurrencies' => true,
                 'fetchDepositAddress' => true,
                 'fetchDeposits' => true,
                 'fetchFundingFees' => false,
+                'fetchMarkets' => true,
                 'fetchMyTrades' => true,
                 'fetchOHLCV' => true,
                 'fetchOpenOrders' => true,
@@ -197,6 +201,7 @@ class ftx extends Exchange {
                     'Size too small' => '\\ccxt\\InvalidOrder', // array("error":"Size too small","success":false)
                     'Missing parameter price' => '\\ccxt\\InvalidOrder', // array("error":"Missing parameter price","success":false)
                     'Order not found' => '\\ccxt\\OrderNotFound', // array("error":"Order not found","success":false)
+                    'Order already closed' => '\\ccxt\\InvalidOrder', // array("error":"Order already closed","success":false)
                 ),
                 'broad' => array(
                     'Invalid parameter' => '\\ccxt\\BadRequest', // array("error":"Invalid parameter start_time","success":false)
@@ -218,6 +223,10 @@ class ftx extends Exchange {
                 ),
                 'fetchOrders' => array(
                     'method' => 'privateGetOrdersHistory', // privateGetConditionalOrdersHistory
+                ),
+                'sign' => array(
+                    'ftx.com' => 'FTX',
+                    'ftx.us' => 'FTXUS',
                 ),
             ),
         ));
@@ -839,6 +848,7 @@ class ftx extends Exchange {
             'new' => 'open',
             'open' => 'open',
             'closed' => 'closed', // filled or canceled
+            'triggered' => 'closed',
         );
         return $this->safe_string($statuses, $status, $status);
     }
@@ -907,8 +917,12 @@ class ftx extends Exchange {
         //
         $id = $this->safe_string($order, 'id');
         $timestamp = $this->parse8601($this->safe_string($order, 'createdAt'));
+        $amount = $this->safe_float($order, 'size');
         $filled = $this->safe_float($order, 'filledSize');
         $remaining = $this->safe_float($order, 'remainingSize');
+        if (($remaining === 0.0) && ($amount !== null) && ($filled !== null)) {
+            $remaining = max ($amount - $filled, 0);
+        }
         $symbol = null;
         $marketId = $this->safe_string($order, 'market');
         if ($marketId !== null) {
@@ -927,7 +941,6 @@ class ftx extends Exchange {
         $status = $this->parse_order_status($this->safe_string($order, 'status'));
         $side = $this->safe_string($order, 'side');
         $type = $this->safe_string($order, 'type');
-        $amount = $this->safe_float($order, 'size');
         $average = $this->safe_float($order, 'avgFillPrice');
         $price = $this->safe_float_2($order, 'price', 'triggerPrice', $average);
         $cost = null;
@@ -1363,7 +1376,7 @@ class ftx extends Exchange {
         return $this->safe_string($statuses, $status, $status);
     }
 
-    public function parse_transaction($transaction) {
+    public function parse_transaction($transaction, $currency = null) {
         //
         // fetchDeposits
         //
@@ -1403,7 +1416,7 @@ class ftx extends Exchange {
         $address = $this->safe_string($transaction, 'address');
         $tag = $this->safe_string($transaction, 'tag');
         $fee = $this->safe_float($transaction, 'fee');
-        $type = (is_array($transaction) && array_key_exists('confirmations', $transaction)) ? 'deposit' : 'withdrawal';
+        $type = (is_array($transaction) && array_key_exists('destinationName', $transaction)) ? 'withdrawal' : 'deposit';
         return array(
             'info' => $transaction,
             'id' => $id,
@@ -1450,10 +1463,14 @@ class ftx extends Exchange {
         //     }
         //
         $result = $this->safe_value($response, 'result', array());
-        return $this->parse_transactions($result);
+        $currency = null;
+        if ($code !== null) {
+            $currency = $this->currency($code);
+        }
+        return $this->parse_transactions($result, $currency, $since, $limit);
     }
 
-    public function fetch_withdrawals($symbol = null, $since = null, $limit = null, $params = array ()) {
+    public function fetch_withdrawals($code = null, $since = null, $limit = null, $params = array ()) {
         $this->load_markets();
         $response = $this->privateGetWalletWithdrawals ($params);
         //
@@ -1473,7 +1490,11 @@ class ftx extends Exchange {
         //     }
         //
         $result = $this->safe_value($response, 'result', array());
-        return $this->parse_transactions($result);
+        $currency = null;
+        if ($code !== null) {
+            $currency = $this->currency($code);
+        }
+        return $this->parse_transactions($result, $currency, $since, $limit);
     }
 
     public function sign($path, $api = 'public', $method = 'GET', $params = array (), $headers = null, $body = null) {
@@ -1492,17 +1513,21 @@ class ftx extends Exchange {
             $this->check_required_credentials();
             $timestamp = (string) $this->milliseconds();
             $auth = $timestamp . $method . $request;
-            $headers = array(
-                'FTX-KEY' => $this->apiKey,
-                'FTX-TS' => $timestamp,
-            );
+            $headers = array();
             if ($method === 'POST') {
                 $body = $this->json($query);
                 $auth .= $body;
                 $headers['Content-Type'] = 'application/json';
             }
             $signature = $this->hmac($this->encode($auth), $this->encode($this->secret), 'sha256');
-            $headers['FTX-SIGN'] = $signature;
+            $options = $this->safe_value($this->options, 'sign', array());
+            $headerPrefix = $this->safe_string($options, $this->hostname, 'FTX');
+            $keyField = $headerPrefix . '-KEY';
+            $tsField = $headerPrefix . '-TS';
+            $signField = $headerPrefix . '-SIGN';
+            $headers[$keyField] = $this->apiKey;
+            $headers[$tsField] = $timestamp;
+            $headers[$signField] = $signature;
         }
         return array( 'url' => $url, 'method' => $method, 'body' => $body, 'headers' => $headers );
     }
