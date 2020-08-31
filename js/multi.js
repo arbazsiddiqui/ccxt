@@ -119,12 +119,12 @@ module.exports = class multi extends Exchange {
         const result = [];
         for (let i = 0; i < markets.length; i++) {
             const market = markets[i];
-            const base = this.safeCurrencyCode (market['pair']);
-            const quote = this.safeCurrencyCode (market['base']);
+            const base = this.safeCurrencyCode (market['base']);
+            const quote = this.safeCurrencyCode (market['quote']);
             const symbol = base + '/' + quote;
             const precision = {
-                'amount': this.safeInteger (market, 'pairPrec'),
-                'price': this.safeInteger (market, 'basePrec'),
+                'amount': this.safeInteger (market, 'basePrec'),
+                'price': this.safeInteger (market, 'quotePrec'),
             };
             result.push ({
                 'id': market['name'],
@@ -303,7 +303,7 @@ module.exports = class multi extends Exchange {
             side = 'sell';
         }
         if (side === '2' || type === 'buy') { // buy
-            fee['currency'] = market['base'];
+            fee['currency'] = market['quote'];
             side = 'buy';
         }
         return {
@@ -355,8 +355,8 @@ module.exports = class multi extends Exchange {
             'open': ticker['open'],
             'close': ticker['close'],
             'last': ticker['close'],
-            'baseVolume': ticker['pairVolume'],
-            'quoteVolume': ticker['baseVolume'],
+            'baseVolume': ticker['baseVolume'],
+            'quoteVolume': ticker['quoteVolume'],
             'askVolume': undefined,
             'average': undefined,
             'change': undefined,
@@ -414,7 +414,7 @@ module.exports = class multi extends Exchange {
         } else {
             fee['cost'] = this.safeValue (order, 'makerFee');
         }
-        fee['currency'] = market['base'];
+        fee['currency'] = market['quote'];
         return {
             'id': this.safeString (order, 'id'),
             'clientOrderId': undefined,
